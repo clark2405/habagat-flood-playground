@@ -1,0 +1,275 @@
+/* ─────────────────────────────────────────────────────────────
+   HABAGAT 3D — Paralives Modern Design System & CSS Layout
+   Spacious, clean vector interface with floating glassmorphism
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Quicksand', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Color Tokens */
+  --bg-calm: #F5EFEB;
+  --bg-storm: #1E232A;
+  
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-border: rgba(42, 36, 56, 0.08);
+  --panel-shadow: 0 10px 30px rgba(35, 25, 50, 0.08);
+
+  --text-dark: #2A2438;
+  --text-muted: #6B6278;
+  
+  --accent-terra: #D9442B;
+  --accent-teal: #3BA99C;
+  --accent-sun: #F4B942;
+  --accent-green: #5B8C3A;
+  --accent-blue: #4A90E2;
+
+  --radius-full: 9999px;
+  --radius-lg: 16px;
+  --radius-md: 10px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-body);
+  color: var(--text-dark);
+  background-color: var(--bg-calm);
+}
+
+/* App Viewport Container */
+.game-viewport {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Glassmorphism Panel */
+.hud-card {
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--panel-shadow);
+  border-radius: var(--radius-lg);
+  transition: all 250ms ease;
+}
+
+/* Applied to the viewport, not to a card. Its `color` was therefore inherited by
+   every HUD label sitting on a LIGHT panel, washing the text out to near-white on
+   near-white whenever a storm was running. */
+.hud-card-storm {
+  background: rgba(30, 35, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* HUD Overlay Layer */
+.hud-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+  z-index: 10;
+}
+
+.hud-interactive {
+  pointer-events: auto;
+}
+
+/* Top HUD Layout */
+.top-hud-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+}
+
+.heading-title {
+  font-family: var(--font-heading);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  /* Explicit: .hud-card-storm sits on the viewport and sets a near-white `color`,
+     which this heading was inheriting — white-on-white, so the wordmark vanished
+     in storm mode. */
+  color: var(--text-dark);
+}
+
+/* Preset Badge Buttons */
+.preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(107, 98, 120, 0.08);
+  color: var(--text-dark);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.preset-btn:hover {
+  background: var(--accent-teal);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.preset-btn.active {
+  background: var(--text-dark);
+  color: #FFFFFF;
+}
+
+/* Action Tool Buttons */
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text-dark);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: all 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.tool-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  background: #FFFFFF;
+}
+
+.tool-btn:active {
+  transform: translateY(0);
+}
+
+.tool-btn.active {
+  background: var(--accent-terra);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 20px rgba(217, 68, 43, 0.35);
+}
+
+/* Primary Weather Storm Button */
+.storm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #D9442B 0%, #B8321D 100%);
+  box-shadow: 0 8px 24px rgba(217, 68, 43, 0.35);
+  cursor: pointer;
+  transition: all 250ms ease;
+}
+
+.storm-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(217, 68, 43, 0.45);
+}
+
+.storm-btn.active-storm {
+  background: linear-gradient(135deg, #4A607A 0%, #2B3A4B 100%);
+  box-shadow: 0 8px 24px rgba(43, 58, 75, 0.45);
+}
+
+/* Bottom Control Panel */
+.bottom-control-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Stats Pill Bar */
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Range Slider */
+input[type="range"].cozy-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(107, 98, 120, 0.2);
+  outline: none;
+}
+
+input[type="range"].cozy-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-terra);
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+input[type="range"].cozy-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+/* Modal Window */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 12, 24, 0.55);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
