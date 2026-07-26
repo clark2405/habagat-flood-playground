@@ -2,6 +2,10 @@ import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 const W = 96;
 const H = 64;
@@ -222,7 +226,13 @@ export default function ThreeCanvas({
       isInitialStorm ? STORM_ENV.fogFar : env.fogFar
     );
 
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+    // Near plane at 0.5 rather than 0.1. Nothing can get closer than that — the
+    // orbit controls clamp the eye to 15 units from the target — and it cuts the
+    // far:near ratio from 10000:1 to 2000:1. The ambient occlusion pass below
+    // reconstructs view positions from the depth buffer, so it is the one thing
+    // in the scene that cares about depth precision; this is cheap insurance for
+    // it rather than a fix for an observed artefact.
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.5, 1000);
     camera.position.set(0, 48, 55);
 
     // 2. WebGL Renderer
@@ -236,6 +246,48 @@ export default function ThreeCanvas({
 
     container.innerHTML = "";
     container.appendChild(renderer.domElement);
+
+    // 2b. Post-processing — ambient occlusion
+    //     One directional light and a flat ambient term leave every prop sitting
+    //     on the ground with no contact shadow, which is what made the scene read
+    //     as objects floating on a painted surface rather than resting on it.
+    //     Ground-truth AO darkens the creases the light model cannot: under the
+    //     eaves, inside the stilts, where a bush meets the slope, along kerbs.
+    //     It is the single biggest remaining step toward the soft hand-painted
+    //     look, and unlike the shadow map it costs nothing per light.
+    const composer = new EffectComposer(renderer);
+    composer.setSize(width, height);
+    composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    composer.addPass(new RenderPass(scene, camera));
+
+    const gtao = new GTAOPass(scene, camera, width, height);
+    gtao.updateGtaoMaterial({
+      // Radius and thickness are both in WORLD units — a terrain cell is 1u and a
+      // house is ~2.5u — and `thickness` is the parameter that actually matters
+      // here. It tells the pass how solid an occluder is assumed to be, and left
+      // at its default of 1.0 against props that are 2-4 units deep the horizon
+      // search passes clean through every hut and tree: the AO buffer comes back
+      // essentially blank no matter how large the radius or how high the blend.
+      // Matching thickness to the depth of the geometry is what makes the effect
+      // exist at all.
+      radius: 5.0,
+      thickness: 5.0,
+      // Below 1.0 the samples bunch toward the shaded point, which favours tight
+      // contact shading over a broad grey wash across open ground.
+      distanceExponent: 0.7,
+      scale: 1.3,
+      samples: 16,
+      screenSpaceRadius: false,
+    });
+    // Restrained on purpose. Pushed harder this reads as dirt rather than shade,
+    // and the reference art keeps its shadows soft and low-contrast.
+    gtao.blendIntensity = 0.9;
+    composer.addPass(gtao);
+
+    // OutputPass applies tone mapping and the sRGB conversion at the very end of
+    // the chain — with a composer in play the renderer no longer does it itself,
+    // and without this the whole image comes out flat and washed.
+    composer.addPass(new OutputPass());
 
     // 3. OrbitControls (Strict Camera Limits so user never dips below horizon)
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -2782,7 +2834,7 @@ export default function ThreeCanvas({
       }
 
       controls.update();
-      renderer.render(scene, camera);
+      composer.render();
     };
 
     animate();
@@ -2794,12 +2846,18 @@ export default function ThreeCanvas({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      // The composer owns its own render targets, so it has to be resized too —
+      // otherwise the AO buffer keeps the old dimensions and the effect drifts
+      // out of alignment with the image.
+      composer.setSize(w, h);
+      gtao.setSize(w, h);
     };
     window.addEventListener("resize", handleResize);
 
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", handleResize);
+      composer.dispose();
       renderer.dispose();
       container.innerHTML = "";
     };

@@ -3,3 +3,13 @@ dist/
 *.log
 .DS_Store
 .claude/settings.local.json
+
+# .NET / Unity port
+[Bb]in/
+[Oo]bj/
+[Ll]ibrary/
+[Tt]emp/
+[Ll]ogs/
+[Uu]serSettings/
+*.csproj.user
+*.sln.DotSettings.user
