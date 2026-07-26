@@ -5,10 +5,19 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>disable</Nullable>
     <RootNamespace>Habagat.Verify</RootNamespace>
+    <!-- Sources are pulled in explicitly below, so don't also glob this folder's
+         own tree twice. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\HabagatSim\HabagatSim.csproj" />
+    <Compile Include="Program.cs" />
+    <!-- The simulation lives in the Unity project and is compiled from there
+         rather than copied. One source of truth: if the sim were duplicated,
+         a fix applied in Unity would silently stop being the thing this harness
+         verifies against the JavaScript original — which is the entire point of
+         the harness. Unity compiles these same files from Assets/Scripts/Sim. -->
+    <Compile Include="..\HabagatUnity\Assets\Scripts\Sim\*.cs" />
   </ItemGroup>
 
 </Project>
