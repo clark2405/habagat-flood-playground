@@ -94,34 +94,29 @@ member that does not exist in 6000.3. Every script compile failed, and because
 the error is raised inside a Unity package rather than project code it looks far
 more alarming than it is. Bumped to 1.20.0 in `Packages/manifest.json`.
 
-## Open: the outerland outline is too straight
+## Resolved: the outerland outline is NOT too straight
 
-`SceneShot -view plan` (fog disabled at that view) shows the surrounding world's
-coastline running dead straight for hundreds of units, with straight creases
-radiating outward from the play area's corners. The web build's equivalent reads
-as bays and spits.
+`SceneShot -view plan` shows the surrounding coastline running nearly straight
+for hundreds of units, with pale streaks trailing south of the play area. That
+looks wrong next to the web build's iso views, which read as bays and inlets.
 
-The relevant term *is* ported — the extra relief concentrated where land crosses
-sea level, which the web build added for exactly this reason:
+It is not wrong. Rendering the **web build from the identical plan view** — 460
+units up, 40° FOV, fog pinned off — produces the same nearly-straight coastline
+and the same streaks. The port is faithful.
 
-```
-h += (fbm(wx*freq*1.7 + 61.3, wz*freq*1.7 + 45.9) - 0.5)
-     * amp * 1.5 * smooth(0.02, 0.14, t) * (1 - smooth(0.34, 0.8, t))
-```
+What makes the reference look organic at normal viewing angles is props, fog and
+the low camera, not a wigglier coastline. Do not "fix" this by inventing extra
+relief; it would diverge from the reference.
 
-Not yet root-caused. Candidates, in rough order of suspicion:
+To reproduce that comparison, temporarily expose the scene from `ThreeCanvas.jsx`
+(`window.__dbg = { camera, controls, scene, renderer }` after `controls.update()`)
+and drive it from the browser. Two traps:
 
-1. The land→sea crossing happens at nearly the same ring index for every border
-   point along an edge, because `far` varies little when a whole edge is at
-   similar elevation — so the relief term perturbs the height but not enough to
-   move the waterline.
-2. Ring spacing: `_ringD` is solved by bisection for the geometric ratio. Worth
-   asserting it matches the JS values rather than assuming.
-3. The corner creases may be the seven-point `CornerFan` being too coarse once
-   rings extend to 430 units.
-
-Compare against the reference before changing constants — the goal is to match
-the web build, not to invent a different coastline.
+- `controls.update()` clamps to `maxDistance` (185), so raise it first.
+- The render loop **lerps `scene.fog.near`/`far` toward the preset every frame**,
+  so assigning them is undone before the next paint. Pin them with
+  `Object.defineProperty(scene.fog, 'near', { get: () => 99000, set: () => {} })`,
+  leaving `fog.color` writable since the loop copies into it.
 
 ## Status
 
@@ -132,7 +127,7 @@ the web build, not to invent a different coastline.
 - [x] Unity project imports cleanly
 - [x] Fingerprint confirmed *inside* Unity — identical on all 52 lines
 - [x] Terrain and water mesh generation
-- [x] Outerland ring mesh + open water (outline needs work, see above)
+- [x] Outerland ring mesh + open water — outline verified against the reference
 - [ ] Props and scatter — art spec is in `src/ThreeCanvas.jsx`
 - [ ] UI — the piece that genuinely has to be rebuilt
 
