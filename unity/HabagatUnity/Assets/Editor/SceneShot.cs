@@ -78,6 +78,24 @@ namespace HabagatEditor
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 mr.receiveShadows = true;
 
+                // ── The world outside the sandbox ────────────────────────────
+                // Deliberately NOT receiving shadows: the shadow frustum only
+                // covers the play area, and sampling it out here paints a hard
+                // straight frustum edge across the landscape — exactly the kind of
+                // artificial line this whole mesh exists to remove.
+                var outer = new OuterlandBuilder();
+                outer.Build(sim, palette, OuterConfig.For(type));
+
+                var outerLand = new GameObject("Outerland");
+                outerLand.transform.SetParent(root.transform);
+                outerLand.AddComponent<MeshFilter>().sharedMesh = outer.Land;
+                var olr = outerLand.AddComponent<MeshRenderer>();
+                var outerMat = new Material(shader);
+                outerMat.SetFloat("_Cull", 0f); // double-sided, like the web build
+                olr.sharedMaterial = outerMat;
+                olr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                olr.receiveShadows = false;
+
                 // ── Water ────────────────────────────────────────────────────
                 // Optionally advance the sim first, so a shot can show a flood
                 // rather than only the starting waterline.
@@ -104,12 +122,23 @@ namespace HabagatEditor
                 wr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 wr.receiveShadows = false;
 
+                var outerWater = new GameObject("OuterWater");
+                outerWater.transform.SetParent(root.transform);
+                outerWater.AddComponent<MeshFilter>().sharedMesh = outer.Water;
+                var owr = outerWater.AddComponent<MeshRenderer>();
+                owr.sharedMaterial = new Material(waterShader);
+                owr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                owr.receiveShadows = false;
+
                 // ── Environment ──────────────────────────────────────────────
                 // Values mirror ENV.coastal in ThreeCanvas.jsx. The horizon band
                 // of the sky must equal the fog colour exactly — that identity is
                 // what makes land dissolve into sky with no seam.
                 var fogColor = new Color(0.874f, 0.933f, 0.957f); // 0xdfeef4
-                RenderSettings.fog = true;
+                // The plan view exists to check the outerland's OUTLINE, and at 460
+                // units up everything is past fogEnd and comes back as flat grey.
+                // Fog off for that diagnostic only.
+                RenderSettings.fog = Arg("-view", "iso") != "plan";
                 RenderSettings.fogMode = FogMode.Linear;
                 RenderSettings.fogColor = fogColor;
                 RenderSettings.fogStartDistance = 100f;
@@ -144,15 +173,26 @@ namespace HabagatEditor
                 // the mesh is: the scene was reflected into left-handed space.
                 // `-view top` gives a plan view, which is the only framing that
                 // makes an orientation mismatch against the reference unambiguous.
-                if (Arg("-view", "iso") == "top")
+                switch (Arg("-view", "iso"))
                 {
-                    cam.transform.position = new Vector3(0, 92, 0);
-                    cam.transform.rotation = Quaternion.Euler(90, 0, 0);
-                }
-                else
-                {
-                    cam.transform.position = new Vector3(56, 52, -56);
-                    cam.transform.LookAt(Vector3.zero);
+                    case "top":
+                        cam.transform.position = new Vector3(0, 92, 0);
+                        cam.transform.rotation = Quaternion.Euler(90, 0, 0);
+                        break;
+                    case "plan":
+                        // High plan view of the whole world, for checking that the
+                        // outerland's outline is organic rather than a rectangle.
+                        cam.transform.position = new Vector3(0, 460, 0);
+                        cam.transform.rotation = Quaternion.Euler(90, 0, 0);
+                        break;
+                    case "far":
+                        cam.transform.position = new Vector3(150, 120, -150);
+                        cam.transform.LookAt(Vector3.zero);
+                        break;
+                    default:
+                        cam.transform.position = new Vector3(56, 52, -56);
+                        cam.transform.LookAt(Vector3.zero);
+                        break;
                 }
                 cam.fieldOfView = 40f;
                 cam.nearClipPlane = 0.5f;

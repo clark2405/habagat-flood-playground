@@ -1,6 +1,6 @@
 # Unity port
 
-Lives on the `unity-port` branch. `main` keeps the web build only.
+Merged into `main` via PR #1; ongoing work continues on `unity-port`.
 
 ```
 unity/
@@ -94,6 +94,35 @@ member that does not exist in 6000.3. Every script compile failed, and because
 the error is raised inside a Unity package rather than project code it looks far
 more alarming than it is. Bumped to 1.20.0 in `Packages/manifest.json`.
 
+## Open: the outerland outline is too straight
+
+`SceneShot -view plan` (fog disabled at that view) shows the surrounding world's
+coastline running dead straight for hundreds of units, with straight creases
+radiating outward from the play area's corners. The web build's equivalent reads
+as bays and spits.
+
+The relevant term *is* ported — the extra relief concentrated where land crosses
+sea level, which the web build added for exactly this reason:
+
+```
+h += (fbm(wx*freq*1.7 + 61.3, wz*freq*1.7 + 45.9) - 0.5)
+     * amp * 1.5 * smooth(0.02, 0.14, t) * (1 - smooth(0.34, 0.8, t))
+```
+
+Not yet root-caused. Candidates, in rough order of suspicion:
+
+1. The land→sea crossing happens at nearly the same ring index for every border
+   point along an edge, because `far` varies little when a whole edge is at
+   similar elevation — so the relief term perturbs the height but not enough to
+   move the waterline.
+2. Ring spacing: `_ringD` is solved by bisection for the geometric ratio. Worth
+   asserting it matches the JS values rather than assuming.
+3. The corner creases may be the seven-point `CornerFan` being too coarse once
+   rings extend to 430 units.
+
+Compare against the reference before changing constants — the goal is to match
+the web build, not to invent a different coastline.
+
 ## Status
 
 - [x] Flood simulation (`step`) — verified against JS
@@ -102,7 +131,8 @@ more alarming than it is. Bumped to 1.20.0 in `Packages/manifest.json`.
 - [x] Unity 6.3 LTS project scaffolded from the Universal 3D (URP) template
 - [x] Unity project imports cleanly
 - [x] Fingerprint confirmed *inside* Unity — identical on all 52 lines
-- [ ] Terrain / water mesh generation
+- [x] Terrain and water mesh generation
+- [x] Outerland ring mesh + open water (outline needs work, see above)
 - [ ] Props and scatter — art spec is in `src/ThreeCanvas.jsx`
 - [ ] UI — the piece that genuinely has to be rebuilt
 
