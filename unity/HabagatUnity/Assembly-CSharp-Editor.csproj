@@ -63,6 +63,7 @@
   <ItemGroup>
     <Compile Include="Assets\TutorialInfo\Scripts\Editor\ReadmeEditor.cs" />
     <Compile Include="Assets\Editor\SimVerify.cs" />
+    <Compile Include="Assets\Editor\SceneShot.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
