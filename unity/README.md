@@ -43,7 +43,7 @@ Both print terrain sums, spot elevations and simulation state at ticks 100, 300
 and 400 for all four presets, under a fixed weather script (rain for 100 ticks,
 storm from 100-300, a surge at 150). Diff either against the JavaScript
 reference. dotnet currently matches the JS byte-for-byte on all 52 lines; the
-in-Unity run is still blocked (see below).
+
 
 ## Two porting hazards worth knowing about
 
