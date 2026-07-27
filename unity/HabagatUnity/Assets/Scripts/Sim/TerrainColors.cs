@@ -55,6 +55,32 @@ namespace Habagat
     }
 
     /// <summary>
+    /// How the world continues past the sandbox border, per preset. `Sea` decides
+    /// whether it opens into coast and ocean or into lower inland country.
+    /// </summary>
+    public struct OuterConfig
+    {
+        public bool Sea;
+        public int Rings;
+        public double Reach, Step0, Amp, Rise, Seabed, Freq;
+
+        public static OuterConfig For(PresetType t)
+        {
+            switch (t)
+            {
+                case PresetType.Coastal:
+                    return new OuterConfig { Sea = true, Reach = 430, Rings = 64, Step0 = 1.0, Amp = 2.4, Rise = 3.4, Seabed = -6.0, Freq = 0.019 };
+                case PresetType.River:
+                    return new OuterConfig { Sea = false, Reach = 430, Rings = 64, Step0 = 1.0, Amp = 3.2, Rise = 3.0, Freq = 0.016 };
+                case PresetType.Island:
+                    return new OuterConfig { Sea = true, Reach = 430, Rings = 64, Step0 = 1.0, Amp = 2.0, Rise = 1.2, Seabed = -6.0, Freq = 0.024 };
+                default: // Urban / Basin
+                    return new OuterConfig { Sea = false, Reach = 430, Rings = 64, Step0 = 1.0, Amp = 0.6, Rise = 0.8, Freq = 0.02 };
+            }
+        }
+    }
+
+    /// <summary>
     /// Value noise and the ground colour ramp, ported from ThreeCanvas.jsx.
     ///
     /// The hash relies on JavaScript's int32 coercions (`|0`, `Math.imul`, `>>>`),

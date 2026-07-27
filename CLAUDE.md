@@ -73,15 +73,41 @@ that voice: a comment that only restates the code is not worth adding.
 
 ## Branches
 
-- `main` — web build only.
-- `unity-port` — adds a Unity 6.3 LTS project, exploring a possible native release.
-  `main` is not deprecated by it and remains the reference implementation.
+`unity-port` was merged into `main` (PR #1), so **both now carry the web build and
+the Unity port**. Ongoing Unity work continues on `unity-port` and merges back.
 
-**Paths differ between branches.** The C# sim lives at `unity/HabagatSim/*.cs` on
-`main`, and at `unity/HabagatUnity/Assets/Scripts/Sim/*.cs` on `unity-port`, where
-it is compiled by both Unity and the dotnet harness from that single location.
+The web build in `src/` is not deprecated by the port. It remains the reference
+implementation: the C# simulation is verified against it, and the art direction
+recorded above was worked out there first.
 
-## The C# port (unity-port)
+## The Unity port
+
+Unity 6.3 LTS (`6000.3.20f1`), URP, at `unity/HabagatUnity/`. Two things to know
+before touching the rendering side:
+
+- **Handedness.** three.js is right-handed, Unity is left-handed, so identical
+  coordinates give a mirrored map. `TerrainMeshBuilder.Vz` negates Z, triangle
+  winding is swapped to match the reflected orientation, and the analytic normal's
+  `gz` term drops its leading minus. Camera and sun are mirrored too. Anything new
+  that positions objects in world space must follow the same convention.
+- **Lighting does not transfer numerically.** three.js folds a `1/PI` into its
+  diffuse BRDF that URP's Lambert does not, so ambient carried across literally is
+  roughly double. And the web build renders through ACES filmic tone mapping —
+  every colour in the ramp was chosen against that curve, so URP needs a
+  Tonemapping volume override or the same colours come out pale.
+
+Render a headless screenshot to check any visual change:
+
+```bash
+Unity.exe -batchmode -quit -projectPath unity/HabagatUnity \
+  -executeMethod HabagatEditor.SceneShot.Run \
+  -preset coastal -ticks 200 -view iso -shotOut shot.png -logFile u.log
+```
+
+Note: no `-nographics` — it needs a real graphics device. `-view top` gives a plan
+view, which is the only framing that makes an orientation mismatch unambiguous.
+
+## The C# simulation port
 
 Engine-agnostic — nothing references `UnityEngine`. Two JavaScript behaviours are
 reproduced *deliberately*; both were caught by fingerprint diffing, not review:

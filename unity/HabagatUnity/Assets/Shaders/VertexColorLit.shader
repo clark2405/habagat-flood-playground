@@ -17,6 +17,10 @@ Shader "Habagat/VertexColorLit"
         // Wetness darkens and slightly cools the ground during rain, the same
         // single value that drives it across the whole world in the web build.
         _Wetness ("Wetness", Range(0,1)) = 0
+        // The outerland ring mesh is drawn double-sided (Cull Off). Its rings can
+        // fold slightly where the warp is strongest, and a backface hole there
+        // punches a window straight through the horizon.
+        [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
     }
 
     SubShader
@@ -27,6 +31,8 @@ Shader "Habagat/VertexColorLit"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+
+            Cull [_Cull]
 
             HLSLPROGRAM
             #pragma vertex vert
@@ -42,6 +48,7 @@ Shader "Habagat/VertexColorLit"
             CBUFFER_START(UnityPerMaterial)
                 half4 _Tint;
                 half _Wetness;
+                float _Cull;
             CBUFFER_END
 
             struct Attributes
