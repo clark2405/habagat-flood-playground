@@ -64,11 +64,13 @@
     <Compile Include="Assets\Scripts\Render\TerrainMeshBuilder.cs" />
     <Compile Include="Assets\Scripts\Sim\JsMath.cs" />
     <Compile Include="Assets\Scripts\Sim\TerrainPresets.cs" />
+    <Compile Include="Assets\Scripts\Render\WaterMeshBuilder.cs" />
     <Compile Include="Assets\Scripts\Sim\TerrainColors.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\Scripts\Sim\FloodSim.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\Shaders\WaterVertexColor.shader" />
     <None Include="Assets\Shaders\VertexColorLit.shader" />
   </ItemGroup>
   <ItemGroup>

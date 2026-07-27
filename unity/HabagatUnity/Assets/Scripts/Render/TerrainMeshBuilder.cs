@@ -29,7 +29,14 @@ namespace Habagat.Render
         public Mesh Mesh => _mesh;
 
         public static float Vx(int col) => -W / 2f + col * DX;
-        public static float Vz(int row) => -H / 2f + row * DZ;
+
+        // Z is NEGATED relative to the web build's `-H/2 + row*DZ`. three.js is
+        // right-handed and Unity is left-handed, so laying the grid out identically
+        // produces a mirror image of the same map — the coast ends up on the wrong
+        // side. Flipping here keeps world space agreeing with the reference
+        // implementation, which matters as soon as seeded prop placement arrives:
+        // otherwise every scattered object lands mirrored too.
+        public static float Vz(int row) => H / 2f - row * DZ;
 
         public TerrainMeshBuilder()
         {
@@ -58,8 +65,11 @@ namespace Habagat.Render
                     int b = a + 1;
                     int c = a + W;
                     int d = c + 1;
-                    tris[t++] = a; tris[t++] = c; tris[t++] = b;
-                    tris[t++] = b; tris[t++] = c; tris[t++] = d;
+                    // Winding is reversed from the obvious order because Vz mirrors
+                    // the Z axis; mirroring one axis flips triangle orientation, and
+                    // without swapping these the whole surface faces downward.
+                    tris[t++] = a; tris[t++] = b; tris[t++] = c;
+                    tris[t++] = b; tris[t++] = d; tris[t++] = c;
                 }
             }
 
@@ -115,7 +125,10 @@ namespace Habagat.Render
                     int xm = col > 0 ? col - 1 : col, xp = col < W - 1 ? col + 1 : col;
                     int ym = row > 0 ? row - 1 : row, yp = row < H - 1 ? row + 1 : row;
                     float gx = -(elev[row * W + xp] - elev[row * W + xm]) / ((xp - xm) * DX);
-                    float gz = -(elev[yp * W + col] - elev[ym * W + col]) / ((yp - ym) * DZ);
+                    // No leading minus: world Z decreases as `row` increases (see Vz),
+                    // so the sign of this gradient is already inverted relative to the
+                    // web build's expression.
+                    float gz = (elev[yp * W + col] - elev[ym * W + col]) / ((yp - ym) * DZ);
                     float inv = 1f / Mathf.Sqrt(gx * gx + 1f + gz * gz);
                     _normals[row * W + col] = new Vector3(gx * inv, inv, gz * inv);
                 }

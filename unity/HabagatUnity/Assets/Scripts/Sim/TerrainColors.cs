@@ -21,6 +21,10 @@ namespace Habagat
     {
         public Rgb Sea, Deep, Low, Mid, High;
         public double Beach;
+        // Water is shaded by DEPTH using the same shallow→deep rule everywhere,
+        // which is what lets the play area's surface meet the open water outside
+        // it without a visible step.
+        public Rgb WaterShallow, WaterDeep;
 
         public static TerrainPalette For(PresetType t)
         {
@@ -29,19 +33,23 @@ namespace Habagat
                 case PresetType.Coastal:
                     return new TerrainPalette {
                         Sea = new Rgb(0.86f, 0.75f, 0.56f), Deep = new Rgb(0.07f, 0.25f, 0.33f), Beach = 0.85,
-                        Low = new Rgb(0.48f, 0.62f, 0.34f), Mid = new Rgb(0.38f, 0.55f, 0.28f), High = new Rgb(0.56f, 0.54f, 0.38f) };
+                        Low = new Rgb(0.48f, 0.62f, 0.34f), Mid = new Rgb(0.38f, 0.55f, 0.28f), High = new Rgb(0.56f, 0.54f, 0.38f),
+                        WaterShallow = new Rgb(0.42f, 0.80f, 0.76f), WaterDeep = new Rgb(0.05f, 0.24f, 0.33f) };
                 case PresetType.River:
                     return new TerrainPalette {
                         Sea = new Rgb(0.33f, 0.31f, 0.22f), Deep = new Rgb(0.13f, 0.17f, 0.14f), Beach = 1.50,
-                        Low = new Rgb(0.34f, 0.52f, 0.24f), Mid = new Rgb(0.28f, 0.45f, 0.20f), High = new Rgb(0.45f, 0.44f, 0.36f) };
+                        Low = new Rgb(0.34f, 0.52f, 0.24f), Mid = new Rgb(0.28f, 0.45f, 0.20f), High = new Rgb(0.45f, 0.44f, 0.36f),
+                        WaterShallow = new Rgb(0.36f, 0.64f, 0.62f), WaterDeep = new Rgb(0.09f, 0.26f, 0.30f) };
                 case PresetType.Island:
                     return new TerrainPalette {
                         Sea = new Rgb(0.86f, 0.76f, 0.56f), Deep = new Rgb(0.06f, 0.26f, 0.34f), Beach = 0.90,
-                        Low = new Rgb(0.34f, 0.56f, 0.28f), Mid = new Rgb(0.26f, 0.48f, 0.22f), High = new Rgb(0.52f, 0.52f, 0.40f) };
+                        Low = new Rgb(0.34f, 0.56f, 0.28f), Mid = new Rgb(0.26f, 0.48f, 0.22f), High = new Rgb(0.52f, 0.52f, 0.40f),
+                        WaterShallow = new Rgb(0.42f, 0.80f, 0.78f), WaterDeep = new Rgb(0.05f, 0.25f, 0.34f) };
                 default: // Urban / Basin
                     return new TerrainPalette {
                         Sea = new Rgb(0.26f, 0.30f, 0.32f), Deep = new Rgb(0.09f, 0.13f, 0.15f), Beach = 0.60,
-                        Low = new Rgb(0.44f, 0.45f, 0.45f), Mid = new Rgb(0.50f, 0.51f, 0.49f), High = new Rgb(0.46f, 0.51f, 0.40f) };
+                        Low = new Rgb(0.44f, 0.45f, 0.45f), Mid = new Rgb(0.50f, 0.51f, 0.49f), High = new Rgb(0.46f, 0.51f, 0.40f),
+                        WaterShallow = new Rgb(0.40f, 0.58f, 0.60f), WaterDeep = new Rgb(0.11f, 0.22f, 0.26f) };
             }
         }
     }

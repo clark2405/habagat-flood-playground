@@ -78,6 +78,32 @@ namespace HabagatEditor
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 mr.receiveShadows = true;
 
+                // ── Water ────────────────────────────────────────────────────
+                // Optionally advance the sim first, so a shot can show a flood
+                // rather than only the starting waterline.
+                int ticks = int.Parse(Arg("-ticks", "0"));
+                float rain = float.Parse(Arg("-rain", "0"));
+                bool storm = Arg("-storm", "0") == "1";
+                for (int i = 0; i < ticks; i++) sim.Step(rain, storm);
+
+                var waterBuilder = new WaterMeshBuilder();
+                var waterMesh = waterBuilder.Build(sim, palette);
+
+                var water = new GameObject("Water");
+                water.transform.SetParent(root.transform);
+                water.AddComponent<MeshFilter>().sharedMesh = waterMesh;
+                var wr = water.AddComponent<MeshRenderer>();
+                var waterShader = Shader.Find("Habagat/WaterVertexColor");
+                if (waterShader == null)
+                {
+                    Debug.LogError("[SceneShot] Habagat/WaterVertexColor not found — shader failed to compile?");
+                    EditorApplication.Exit(2);
+                    return;
+                }
+                wr.sharedMaterial = new Material(waterShader);
+                wr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                wr.receiveShadows = false;
+
                 // ── Environment ──────────────────────────────────────────────
                 // Values mirror ENV.coastal in ThreeCanvas.jsx. The horizon band
                 // of the sky must equal the fog colour exactly — that identity is
@@ -102,7 +128,11 @@ namespace HabagatEditor
                 light.color = new Color(1f, 0.941f, 0.678f); // 0xfff0ad
                 light.intensity = 1.35f;
                 light.shadows = LightShadows.Soft;
-                lightGo.transform.position = new Vector3(40, 65, 40);
+                // Z negated against the web build's (40,65,40), for the same reason
+                // the mesh negates it: the geometry was mirrored into Unity's
+                // left-handed space, so anything positioned in that space has to be
+                // mirrored with it or the sun comes from the wrong quarter.
+                lightGo.transform.position = new Vector3(40, 65, -40);
                 lightGo.transform.LookAt(Vector3.zero);
 
                 // ── Camera ───────────────────────────────────────────────────
@@ -110,8 +140,20 @@ namespace HabagatEditor
                 var camGo = new GameObject("Cam");
                 camGo.transform.SetParent(root.transform);
                 var cam = camGo.AddComponent<Camera>();
-                cam.transform.position = new Vector3(56, 52, 56);
-                cam.transform.LookAt(Vector3.zero);
+                // Mirrored in Z from the web build's (56,52,56), for the same reason
+                // the mesh is: the scene was reflected into left-handed space.
+                // `-view top` gives a plan view, which is the only framing that
+                // makes an orientation mismatch against the reference unambiguous.
+                if (Arg("-view", "iso") == "top")
+                {
+                    cam.transform.position = new Vector3(0, 92, 0);
+                    cam.transform.rotation = Quaternion.Euler(90, 0, 0);
+                }
+                else
+                {
+                    cam.transform.position = new Vector3(56, 52, -56);
+                    cam.transform.LookAt(Vector3.zero);
+                }
                 cam.fieldOfView = 40f;
                 cam.nearClipPlane = 0.5f;
                 cam.farClipPlane = 1000f;
@@ -139,15 +181,24 @@ namespace HabagatEditor
                 volume.sharedProfile = profile;
 
                 // ── Render ───────────────────────────────────────────────────
-                var rt = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32)
+                // Supersample rather than rely on the RenderTexture's antiAliasing
+                // field — URP takes its MSAA setting from the pipeline asset and
+                // ignores that field, so the first shots came back with visibly
+                // jagged water edges. Rendering at 2x and box-filtering down is
+                // pipeline-independent and gives cleaner alpha edges than MSAA would.
+                const int ss = 2;
+                var rtBig = new RenderTexture(width * ss, height * ss, 24, RenderTextureFormat.ARGB32);
+                var rtSmall = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32)
                 {
-                    antiAliasing = 4
+                    filterMode = FilterMode.Bilinear
                 };
-                cam.targetTexture = rt;
+
+                cam.targetTexture = rtBig;
                 cam.Render();
+                Graphics.Blit(rtBig, rtSmall);
 
                 var prev = RenderTexture.active;
-                RenderTexture.active = rt;
+                RenderTexture.active = rtSmall;
                 var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
                 tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
                 tex.Apply();
@@ -157,7 +208,8 @@ namespace HabagatEditor
                 File.WriteAllBytes(outPath, tex.EncodeToPNG());
 
                 cam.targetTexture = null;
-                UnityEngine.Object.DestroyImmediate(rt);
+                UnityEngine.Object.DestroyImmediate(rtBig);
+                UnityEngine.Object.DestroyImmediate(rtSmall);
                 UnityEngine.Object.DestroyImmediate(tex);
 
                 Debug.Log($"[SceneShot] {presetName} -> {Path.GetFullPath(outPath)} " +
