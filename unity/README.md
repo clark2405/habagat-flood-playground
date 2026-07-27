@@ -42,7 +42,12 @@ Inside Unity, headless:
 Both print terrain sums, spot elevations and simulation state at ticks 100, 300
 and 400 for all four presets, under a fixed weather script (rain for 100 ticks,
 storm from 100-300, a surge at 150). Diff either against the JavaScript
-reference. dotnet currently matches the JS byte-for-byte on all 52 lines; the
+reference. **Both currently match the JS byte-for-byte on all 52 lines.**
+
+Running it under Unity as well as dotnet is not redundant: Unity has its own
+scripting runtime and compiler settings, and float behaviour is exactly the kind
+of thing that can differ between them. dotnet agreeing proves nothing about what
+the editor does.
 
 
 ## Two porting hazards worth knowing about
@@ -67,38 +72,36 @@ per-operation and clearly visible after 400 ticks — it was caught by the
 fingerprint diff, not by reading the code. Every intermediate is a `double`, cast
 to `float` only on assignment.
 
-## Known issue: package resolution fails with EPERM
+## Setup gotchas already paid for
 
-Headless first-open fails to resolve packages on this machine:
-
-```
-EPERM: operation not permitted, rename
-  Library/PackageCache/.tmp-*/package -> Library/PackageCache/com.unity.*@<hash>
-```
-
-...for every package. Windows Defender real-time protection is enabled and holds
-handles on freshly extracted files, so Unity's rename loses the race. Deleting
-`Library/` and clearing read-only attributes does not help; there were no
-read-only files to begin with.
-
-Fix (needs administrator):
+**Defender breaks package resolution.** First-open failed on all 20 packages with
+`EPERM: operation not permitted, rename` in `Library/PackageCache`. Real-time
+protection holds handles on freshly extracted files and Unity loses the rename
+race. Deleting `Library/` and clearing read-only attributes did not help — there
+were no read-only files. Fix, as administrator:
 
 ```powershell
-Add-MpPreference -ExclusionPath "D:\Codes\habagat-flood-playground\unity"
+Add-MpPreference -ExclusionPath "<repo>\unity"
 Add-MpPreference -ExclusionPath "C:\Program Files\Unity\Hub\Editor"
 ```
 
-This is worth doing regardless — Defender scanning `Library/` is a well-known
-cause of slow Unity imports.
+Worth keeping regardless: Defender scanning `Library/` is a well-known cause of
+slow Unity imports.
+
+**The URP template ships a broken Input System pin.** It requests
+`com.unity.inputsystem` 1.12.0, which references `BuildTarget.ReservedCFE` — a
+member that does not exist in 6000.3. Every script compile failed, and because
+the error is raised inside a Unity package rather than project code it looks far
+more alarming than it is. Bumped to 1.20.0 in `Packages/manifest.json`.
 
 ## Status
 
-- [x] Flood simulation (`step`) — verified against JS under dotnet
-- [x] Terrain presets — verified against JS under dotnet
+- [x] Flood simulation (`step`) — verified against JS
+- [x] Terrain presets — verified against JS
 - [x] Brush tools (`handlePaint`)
 - [x] Unity 6.3 LTS project scaffolded from the Universal 3D (URP) template
-- [ ] First successful Unity import (blocked on the EPERM above)
-- [ ] Fingerprint confirmed *inside* Unity
+- [x] Unity project imports cleanly
+- [x] Fingerprint confirmed *inside* Unity — identical on all 52 lines
 - [ ] Terrain / water mesh generation
 - [ ] Props and scatter — art spec is in `src/ThreeCanvas.jsx`
 - [ ] UI — the piece that genuinely has to be rebuilt
