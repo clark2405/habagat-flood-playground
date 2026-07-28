@@ -138,6 +138,54 @@ namespace Habagat.Render
         /// <summary>THREE.ConeGeometry(r, h, seg) — a cylinder with no top.</summary>
         public static MeshData Cone(float r, float h, int seg) => Cylinder(0f, r, h, seg);
 
+        // ── Plane ────────────────────────────────────────────────────────────
+        /// <summary>THREE.PlaneGeometry — in the XY plane, facing +Z.</summary>
+        public static MeshData Plane(float w, float h)
+        {
+            var v = new List<Vector3>(6); var n = new List<Vector3>(6); var t = new List<int>(6);
+            float x = w * 0.5f, y = h * 0.5f;
+            Quad(v, n, t, new(-x, -y, 0), new(x, -y, 0), new(x, y, 0), new(-x, y, 0),
+                 Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward);
+            return Pack(v, n, t);
+        }
+
+        // ── Torus ────────────────────────────────────────────────────────────
+        /// <summary>
+        /// THREE.TorusGeometry(radius, tube, radialSegments, tubularSegments), lying
+        /// in the XY plane. The basketball court's centre circle, key arcs and hoop
+        /// rims are all low-segment tori — at 4 radial segments a "ring" is really a
+        /// square-section band, which is exactly the low-poly read wanted here.
+        /// </summary>
+        public static MeshData Torus(float radius, float tube, int radialSeg, int tubularSeg)
+        {
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var t = new List<int>();
+
+            Vector3 P(int ti, int ri, out Vector3 nrm)
+            {
+                float u = ti / (float)tubularSeg * Mathf.PI * 2f;
+                float vv = ri / (float)radialSeg * Mathf.PI * 2f;
+                var centre = new Vector3(radius * Mathf.Cos(u), radius * Mathf.Sin(u), 0);
+                var p = new Vector3((radius + tube * Mathf.Cos(vv)) * Mathf.Cos(u),
+                                    (radius + tube * Mathf.Cos(vv)) * Mathf.Sin(u),
+                                    tube * Mathf.Sin(vv));
+                nrm = (p - centre).normalized;
+                return p;
+            }
+
+            for (int ti = 0; ti < tubularSeg; ti++)
+            {
+                for (int ri = 0; ri < radialSeg; ri++)
+                {
+                    var a = P(ti, ri, out var na);
+                    var b = P(ti + 1, ri, out var nb);
+                    var c = P(ti + 1, ri + 1, out var nc);
+                    var d = P(ti, ri + 1, out var nd);
+                    Quad(v, n, t, a, b, c, d, na, nb, nc, nd, (na + nb + nc + nd) * 0.25f);
+                }
+            }
+            return Pack(v, n, t);
+        }
+
         // ── Dodecahedron ─────────────────────────────────────────────────────
         // Vertex and face tables from three.js's DodecahedronGeometry. Used flat
         // shaded at detail 0 for rocks, bush blobs and coconuts: twelve pentagons

@@ -82,6 +82,14 @@ namespace Habagat.Render
             public float X, Y, Z, Yaw, S;
         }
 
+        /// <summary>
+        /// Build a placement from REFERENCE world coordinates — the raw
+        /// <c>x - W/2</c> the web build uses, with no cell-centre offset — mirroring
+        /// Z on the way in.
+        /// </summary>
+        private static Placement RefPlace(double wx, double y, double wz, double yaw, double s) =>
+            new Placement { X = (float)wx, Y = (float)y, Z = -(float)wz, Yaw = (float)yaw, S = (float)s };
+
         private static Matrix4x4 ToMatrix(in Placement p) =>
             Matrix4x4.TRS(new Vector3(p.X, p.Y, p.Z),
                           // Yaw negated along with Z: reflecting the world reverses
@@ -99,6 +107,57 @@ namespace Habagat.Render
             // implementations walk the same stream.
             string presetName = PresetName(type);
             var rnd = new Rng(JsMath.StrSeed("props:" + presetName));
+
+            void Add(Mesh mesh, List<Placement> spots, bool shadow = true)
+            {
+                if (mesh == null || spots.Count == 0) return;
+                var batch = new PropBatch { Mesh = mesh, CastShadow = shadow };
+                foreach (var p in spots) batch.Instances.Add(ToMatrix(p));
+                batches.Add(batch);
+            }
+
+            // ── Basketball court ─────────────────────────────────────────────
+            // A rigid 4x3-cell slab, so it needs genuinely flat, dry ground. It used
+            // to be hard-coded to x = 0.48W — which on the urban map is exactly where
+            // the canal runs, so it spawned in the water. Draws nothing from the RNG,
+            // and runs first, matching the original.
+            {
+                int bgx = -1, bgy = -1; double bhi = 0, bestScore = 0; bool found = false;
+                for (int gy = 6; gy < H - 6; gy++)
+                    for (int gx = 6; gx < W - 6; gx++)
+                    {
+                        double lo = double.MaxValue, hi = double.MinValue;
+                        for (int dy = -2; dy <= 2; dy++)
+                            for (int dx = -2; dx <= 2; dx++)
+                            {
+                                double e = elev[(gy + dy) * W + gx + dx];
+                                if (e < lo) lo = e;
+                                if (e > hi) hi = e;
+                            }
+                        if (lo < 0.45) continue; // must be dry, with freeboard
+                        // Prefer flat, and prefer sitting near the middle of the barangay.
+                        double score = (hi - lo) + Math.Sqrt(Math.Pow(gx - W * 0.5, 2) + Math.Pow(gy - H * 0.5, 2)) * 0.012;
+                        if (!found || score < bestScore) { found = true; bestScore = score; bgx = gx; bgy = gy; bhi = hi; }
+                    }
+                if (found)
+                {
+                    Add(PropLibrary.BasketballCourt(),
+                        new List<Placement> { RefPlace(bgx - W / 2.0, bhi + 0.08, bgy - H / 2.0, 0, 1) });
+                }
+            }
+
+            // Bilinear height lookup in REFERENCE world space — roads and paths have
+            // to follow the ground exactly or they slice through every rise they cross.
+            double ElevAt(double wx, double wz)
+            {
+                double fx = Math.Min(Math.Max(wx + W / 2.0, 0), W - 1.001);
+                double fz = Math.Min(Math.Max(wz + H / 2.0, 0), H - 1.001);
+                int x0 = (int)fx, z0 = (int)fz;
+                double tx = fx - x0, tz = fz - z0;
+                double e00 = elev[z0 * W + x0], e10 = elev[z0 * W + x0 + 1];
+                double e01 = elev[(z0 + 1) * W + x0], e11 = elev[(z0 + 1) * W + x0 + 1];
+                return (e00 * (1 - tx) + e10 * tx) * (1 - tz) + (e01 * (1 - tx) + e11 * tx) * tz;
+            }
 
             // Keep the scatter out of people's yards: anything within this many
             // cells of a house is reserved, so a bush never grows through a wall.
@@ -136,14 +195,6 @@ namespace Habagat.Render
                     });
                 }
                 return outp;
-            }
-
-            void Add(Mesh mesh, List<Placement> spots, bool shadow = true)
-            {
-                if (mesh == null || spots.Count == 0) return;
-                var batch = new PropBatch { Mesh = mesh, CastShadow = shadow };
-                foreach (var p in spots) batch.Instances.Add(ToMatrix(p));
-                batches.Add(batch);
             }
 
             // ── Buildings ────────────────────────────────────────────────────
@@ -258,7 +309,238 @@ namespace Habagat.Render
                 Add(PropLibrary.Fence(), fenceSpots, shadow: false);
                 Add(PropLibrary.LaundryLine(ref rnd), laundrySpots, shadow: false);
             }
+            else
+            {
+                // ── Urban: streets, poles and street furniture ───────────────
+                // The city preset was the worst offender — a flat grey plane with
+                // dark specks on it. What a barangay street actually has is asphalt,
+                // a forest of utility poles, and clutter along the kerb.
+                double canalX = W * 0.48;
+                int[] roadRows = { 15, 25, 35, 45, 55 };
 
+                var road = new PropBuilder();
+                var marks = new PropBuilder();
+                Color roadCol = PropPalette.Hex(0x4a4a4d);
+                Color markCol = PropPalette.Hex(0xe8e2cf);
+
+                // Ribbon geometry that samples the heightmap, so the road drapes over
+                // the ground instead of guillotining it. Built in REFERENCE space and
+                // handed to PropBuilder, whose mirror does the rest — which is also
+                // what keeps the winding right without thinking about it.
+                MeshData Ribbon(List<(double x, double z)> pts, double halfW, double y0)
+                {
+                    int n = pts.Count;
+                    var verts = new Vector3[n * 2];
+                    var norms = new Vector3[n * 2];
+                    for (int s = 0; s < n; s++)
+                    {
+                        var p = pts[s];
+                        var q = pts[Math.Min(s + 1, n - 1)];
+                        var r = pts[Math.Max(s - 1, 0)];
+                        double dx = q.x - r.x, dz = q.z - r.z;
+                        double l = Math.Sqrt(dx * dx + dz * dz);
+                        if (l == 0) l = 1;
+                        dx /= l; dz /= l;
+                        double nx = -dz, nz = dx;
+                        int k = 0;
+                        foreach (int sgn in new[] { -1, 1 })
+                        {
+                            double wx = p.x + nx * halfW * sgn;
+                            double wz = p.z + nz * halfW * sgn;
+                            verts[s * 2 + k] = new Vector3((float)wx, (float)(ElevAt(wx, wz) + y0), (float)wz);
+                            norms[s * 2 + k] = Vector3.up;
+                            k++;
+                        }
+                    }
+                    var tris = new int[(n - 1) * 6];
+                    int t = 0;
+                    for (int s = 0; s < n - 1; s++)
+                    {
+                        int a = s * 2, b = s * 2 + 1, c = s * 2 + 2, d = s * 2 + 3;
+                        // See the note in ThreeCanvas.jsx: the reference wound these
+                        // (a,c,b)/(b,c,d), which points an east-west road's normal at
+                        // the ground and culls it. Corrected in both builds.
+                        tris[t++] = a; tris[t++] = b; tris[t++] = c;
+                        tris[t++] = b; tris[t++] = d; tris[t++] = c;
+                    }
+                    return new MeshData { Verts = verts, Normals = norms, Tris = tris };
+                }
+
+                foreach (int gy in roadRows)
+                {
+                    // Two carriageways so the canal is spanned by a gap, not paved over.
+                    foreach (var (x0, x1) in new[] { (6.0, canalX - 3.2), (canalX + 3.2, W - 6.0) })
+                    {
+                        var pts = new List<(double, double)>();
+                        for (double x = x0; x <= x1; x += 2) pts.Add((x - W / 2.0, gy - H / 2.0));
+                        if (pts.Count < 2) continue;
+                        road.Add(Ribbon(pts, 1.5, 0.07), roadCol);
+                        // Dashed centre line.
+                        for (double x = x0 + 1; x < x1 - 1; x += 5)
+                        {
+                            var seg = new List<(double, double)>
+                            {
+                                (x - W / 2.0, gy - H / 2.0), (x + 2 - W / 2.0, gy - H / 2.0),
+                            };
+                            marks.Add(Ribbon(seg, 0.09, 0.1), markCol);
+                        }
+                    }
+                }
+                // One cross street on the dry side of the canal.
+                foreach (double cx in new[] { 20.0, 72.0 })
+                {
+                    var pts = new List<(double, double)>();
+                    for (double y = 8; y <= H - 8; y += 2) pts.Add((cx - W / 2.0, y - H / 2.0));
+                    road.Add(Ribbon(pts, 1.4, 0.07), roadCol);
+                }
+
+                // Footbridges over the canal on every road line.
+                foreach (int gy in roadRows)
+                {
+                    double bx = canalX - W / 2.0, bz = gy - H / 2.0;
+                    double y = Math.Max(ElevAt(bx, bz), 0);
+                    road.Add(Prim.Box(8.0f, 0.22f, 3.0f), PropPalette.Concrete,
+                             new Vector3((float)bx, (float)(y + 0.75), (float)bz));
+                    foreach (double rz in new[] { -1.4, 1.4 })
+                        road.Add(Prim.Box(8.0f, 0.5f, 0.14f), PropPalette.Concrete,
+                                 new Vector3((float)bx, (float)(y + 1.1), (float)(bz + rz)));
+                }
+
+                // A road is already in world space, so it is placed at the origin.
+                var atOrigin = new List<Placement> { RefPlace(0, 0, 0, 0, 1) };
+                Add(road.Build("Roads"), atOrigin, shadow: false);
+                Add(marks.Build("RoadMarks"), atOrigin, shadow: false);
+
+                // Utility poles marching down both sides of every street. These are
+                // the verticals the flat city was completely missing.
+                var lampSpots = new List<Placement>();
+                foreach (int gy in roadRows)
+                    for (int x = 8; x < W - 8; x += 7)
+                    {
+                        if (Math.Abs(x - canalX) < 5) continue;
+                        int side = (x / 7) % 2 < 1 ? -1 : 1;
+                        double wx = x - W / 2.0, wz = gy - H / 2.0 + side * 2.4;
+                        lampSpots.Add(RefPlace(wx, ElevAt(wx, wz), wz, side > 0 ? Math.PI : 0, 0.95 + rnd.Next() * 0.2));
+                    }
+                Add(PropLibrary.StreetLamp(), lampSpots);
+
+                // Kerbside life: stalls, parked tricycles, planters.
+                var stallSpots = new List<Placement>();
+                var trikeSpots = new List<Placement>();
+                foreach (int gy in roadRows)
+                    for (int x = 12; x < W - 12; x += 9)
+                    {
+                        if (Math.Abs(x - canalX) < 6) continue;
+                        if (rnd.Next() > 0.55)
+                        {
+                            double wx = x - W / 2.0 + rnd.Next() * 2;
+                            double wz = gy - H / 2.0 + (rnd.Next() > 0.5 ? 2.7 : -2.7);
+                            stallSpots.Add(RefPlace(wx, ElevAt(wx, wz), wz, rnd.Next() * Math.PI * 2, 1));
+                        }
+                        if (rnd.Next() > 0.45)
+                        {
+                            double wx = x - W / 2.0 + rnd.Next() * 3;
+                            double wz = gy - H / 2.0 + (rnd.Next() > 0.5 ? 1.9 : -1.9);
+                            double yaw = rnd.Next() * 0.5 + (rnd.Next() > 0.5 ? 0 : Math.PI);
+                            trikeSpots.Add(RefPlace(wx, ElevAt(wx, wz), wz, yaw, 1));
+                        }
+                    }
+                Add(PropLibrary.MarketStall(ref rnd), stallSpots);
+                Add(PropLibrary.Tricycle(ref rnd), trikeSpots);
+
+                // Even a paved barangay has weeds, potted plants and rubble.
+                var uBush = Gather(110, DryLand, 0.7, 1.2);
+                Add(PropLibrary.Bush(ref rnd), uBush, shadow: false);
+                var uTuft = Gather(160, (e, x, y) => e > 0.25 && e < 3.6, 0.7, 1.3, jitter: 0.7);
+                Add(PropLibrary.GrassTuft(ref rnd), uTuft, shadow: false);
+                var uRock = Gather(50, (e, x, y) => e > 0.2 && e < 3.8, 0.7, 1.3);
+                Add(PropLibrary.Rock(ref rnd), uRock, shadow: false);
+                // A few palms survive along the canal, as they do in real Metro Manila.
+                var uPalm = Gather(16, (e, px, py) => e > 0.45 && e < 2.4 && Math.Abs(px - canalX) < 14,
+                                   0.8, 1.1, reserveR: 1);
+                Add(PropLibrary.CoconutPalm(ref rnd), uPalm);
+            }
+
+            // ── Boats ────────────────────────────────────────────────────────
+            // Boats belong in water. They used to be dropped at fixed columns on one
+            // fixed row, which on both water maps left them beached on dry grass. The
+            // hull is 0.34 deep and the outriggers sit lower still, so a boat needs
+            // real draught under it, and they are spread out — eight boats in one
+            // huddle is not a fishing village.
+            {
+                int placed = 0;
+                int want = isVillage ? 8 : 3;
+                var taken = new List<(int x, int y)>();
+                var boatProtos = new Dictionary<string, Mesh>();
+                var boatBatches = new Dictionary<string, PropBatch>();
+
+                for (int attempt = 0; attempt < 900 && placed < want; attempt++)
+                {
+                    int px = 6 + (int)(rnd.Next() * (W - 12));
+                    int py = 6 + (int)(rnd.Next() * (H - 12));
+                    double e = elev[py * W + px];
+                    bool clear = true;
+                    foreach (var t in taken)
+                        if (Math.Sqrt(Math.Pow(t.x - px, 2) + Math.Pow(t.y - py, 2)) <= 7) { clear = false; break; }
+
+                    if (e > -2.6 && e < -0.85 && clear)
+                    {
+                        taken.Add((px, py));
+                        string key = "boat" + (placed % 4);
+                        if (!boatProtos.TryGetValue(key, out var proto))
+                        {
+                            proto = PropLibrary.BangkaBoat(ref rnd);
+                            boatProtos[key] = proto;
+                        }
+                        if (!boatBatches.TryGetValue(key, out var bb))
+                        {
+                            bb = new PropBatch { Mesh = proto, CastShadow = true };
+                            boatBatches[key] = bb;
+                            batches.Add(bb);
+                        }
+                        double yaw = rnd.Next() * Math.PI * 2;
+                        // Sits at sea level, not on the seabed — it floats.
+                        bb.Instances.Add(ToMatrix(RefPlace(px - W / 2.0, FloodSim.SeaLevel, py - H / 2.0, yaw, 1)));
+                        placed++;
+                    }
+                }
+            }
+
+            return batches;
+        }
+
+        /// <summary>
+        /// Mangroves and drain pumps, which are not scattered but PAINTED — they come
+        /// from simulation state the player edits, so they are rebuilt whenever the
+        /// counts change rather than once per preset, and they draw nothing from the
+        /// RNG. They also sit on cell centres, unlike the raw reference coordinates
+        /// the roads use.
+        /// </summary>
+        public static List<PropBatch> BuildSimProps(FloodSim sim)
+        {
+            var batches = new List<PropBatch>();
+            var elev = sim.Elev;
+
+            PropBatch mang = null, drn = null;
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int i = y * W + x;
+                    var m = Matrix4x4.TRS(new Vector3(Cx(x), elev[i], Cz(y)), Quaternion.identity, Vector3.one);
+                    if (sim.Mang[i] != 0)
+                    {
+                        mang ??= new PropBatch { Mesh = PropLibrary.MangroveTree(), CastShadow = true };
+                        mang.Instances.Add(m);
+                    }
+                    if (sim.Drn[i] != 0)
+                    {
+                        drn ??= new PropBatch { Mesh = PropLibrary.Drain(), CastShadow = true };
+                        drn.Instances.Add(m);
+                    }
+                }
+
+            if (mang != null) batches.Add(mang);
+            if (drn != null) batches.Add(drn);
             return batches;
         }
 

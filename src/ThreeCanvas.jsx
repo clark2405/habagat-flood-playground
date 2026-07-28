@@ -2602,7 +2602,12 @@ export default function ThreeCanvas({
             }
             for (let s = 0; s < pts.length - 1; s++) {
               const a = s * 2, b = s * 2 + 1, c = s * 2 + 2, d = s * 2 + 3;
-              idx.push(a, c, b, b, c, d);
+              // Winding matters: wound the other way (a,c,b / b,c,d) the geometric
+              // normal of an east-west carriageway points DOWN, so every road on
+              // the map was back-face culled and the urban preset rendered as bare
+              // ground with lamps standing on it. The cross streets survived only
+              // because a ribbon running north-south winds the opposite way.
+              idx.push(a, b, c, b, d, c);
             }
             const geo = new THREE.BufferGeometry();
             geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
