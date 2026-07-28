@@ -68,13 +68,16 @@
     <Compile Include="Assets\Scripts\Sim\TerrainPresets.cs" />
     <Compile Include="Assets\Scripts\Render\WaterMeshBuilder.cs" />
     <Compile Include="Assets\Scripts\Sim\TerrainColors.cs" />
+    <Compile Include="Assets\Scripts\Render\WorldBuilder.cs" />
     <Compile Include="Assets\Scripts\Render\PropLibrary.cs" />
     <Compile Include="Assets\Scripts\Sim\Barangay.cs" />
     <Compile Include="Assets\Scripts\Render\PropScatter.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\Scripts\Render\OuterlandBuilder.cs" />
+    <Compile Include="Assets\Scripts\HabagatWorld.cs" />
     <Compile Include="Assets\Scripts\Sim\FloodSim.cs" />
     <Compile Include="Assets\Scripts\Render\Prim.cs" />
+    <Compile Include="Assets\Scripts\OrbitCamera.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\Shaders\WaterVertexColor.shader" />

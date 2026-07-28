@@ -120,6 +120,15 @@ holds the creators and `PropScatter`/`WorldDress` the placement. The placement R
 of draws inside a creator is load-bearing — an extra `Next()` shifts every prop
 placed after it.
 
+**There is a runtime scene now**: `Assets/Scenes/Habagat.unity`, built from code by
+`Habagat/Rebuild Play Scene`. `HabagatWorld` owns the sim and ticks it; `WorldBuilder`
+constructs terrain, outerland, props, water and atmosphere. Both the play scene and
+the screenshot harness go through `WorldBuilder`, and they must stay that way — when
+the harness assembled its own scene, every screenshot was evidence about the harness
+rather than about anything you could press Play on.
+
+`TASK.md` at the repo root is the running list of what is left.
+
 Render a headless screenshot to check any visual change:
 
 ```bash
