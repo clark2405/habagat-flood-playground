@@ -109,7 +109,20 @@ namespace HabagatEditor
                     // alpha — the glass. Terrain leaves this at 0.
                     propMat.SetFloat("_EmissiveFromAlpha", 1f);
 
+                    // Mangroves and drains are painted, not scattered, so a fresh sim
+                    // has none. `-paint mangrove` / `-paint drain` exercises that path
+                    // for a screenshot; the real scene gets them from the player.
+                    string paint = Arg("-paint", "");
+                    if (paint != "")
+                    {
+                        var tool = paint == "drain" ? FloodSim.Tool.DrainPump : FloodSim.Tool.Mangrove;
+                        for (int y = 8; y < FloodSim.H - 8; y += 9)
+                            for (int x = 8; x < FloodSim.W - 8; x += 11)
+                                sim.Paint(tool, x, y, 2);
+                    }
+
                     var batches = PropScatter.Build(sim, type);
+                    batches.AddRange(PropScatter.BuildSimProps(sim));
                     // The world outside the sandbox gets dressed with the same kinds
                     // of object, thinning with distance. Without it the play area is
                     // the only place on the map where anything is standing up, and

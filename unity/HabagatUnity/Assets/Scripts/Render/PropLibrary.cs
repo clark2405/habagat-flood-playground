@@ -488,21 +488,216 @@ namespace Habagat.Render
         }
 
         /// <summary>
-        /// Driftwood at the tideline. Built from the same bleached-wood tone as the
-        /// fence so the strandline reads as one material.
+        /// A single beached log at the tideline. Exactly three draws — length, yaw,
+        /// roll — and that count is load-bearing: the fence and laundry placements
+        /// come later in the same stream, so a creator that draws a different number
+        /// of values silently moves them.
         /// </summary>
         public static Mesh Driftwood(ref Rng rnd)
         {
             var b = new PropBuilder();
-            int n = 2 + rnd.NextInt(2);
-            for (int i = 0; i < n; i++)
-            {
-                float len = 0.6f + rnd.NextF() * 0.7f;
-                b.Add(Prim.Cylinder(0.05f, 0.07f, len, 5), PropPalette.Bamboo,
-                      new Vector3((rnd.NextF() - 0.5f) * 0.5f, 0.07f, (rnd.NextF() - 0.5f) * 0.5f),
-                      Prim.EulerXYZ(Pi / 2f + (rnd.NextF() - 0.5f) * 0.3f, rnd.NextF() * 3f, 0));
-            }
+            float len = 1.1f + rnd.NextF() * 0.6f;
+            float ry = rnd.NextF() * 3f;
+            float rz = Pi / 2f + (rnd.NextF() - 0.5f) * 0.3f;
+            b.Add(Prim.Cylinder(0.11f, 0.14f, len, 5), PropPalette.Wood,
+                  new Vector3(0, 0.12f, 0), Prim.EulerXYZ(0, ry, rz));
             return b.Build("Driftwood");
+        }
+
+        // ── Street furniture ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Street lamp and power pole. Verticals are what a flat urban map is
+        /// missing — without them the city preset is a grey plane with specks on it.
+        /// </summary>
+        public static Mesh StreetLamp()
+        {
+            var b = new PropBuilder();
+            b.Add(Prim.Cylinder(0.07f, 0.1f, 3.2f, 6), DrainBox, new Vector3(0, 1.6f, 0));
+            b.Add(Prim.Box(0.7f, 0.07f, 0.07f), DrainBox, new Vector3(0.33f, 3.15f, 0));
+            b.Add(Prim.Box(0.34f, 0.12f, 0.2f), PropPalette.Trim, new Vector3(0.66f, 3.06f, 0));
+            // Crossarm + insulators: the tangle of overhead wiring is a Manila signature.
+            b.Add(Prim.Box(1.15f, 0.06f, 0.06f), PropPalette.Wood, new Vector3(0, 2.6f, 0));
+            foreach (float ix in new[] { -0.45f, 0f, 0.45f })
+                b.Add(Prim.Cylinder(0.05f, 0.05f, 0.14f, 5), PropPalette.Tarp, new Vector3(ix, 2.72f, 0));
+            return b.Build("StreetLamp");
+        }
+
+        /// <summary>Roadside market stall under a tarp.</summary>
+        public static Mesh MarketStall(ref Rng rnd)
+        {
+            var b = new PropBuilder();
+            Color[] tarps =
+            {
+                PropPalette.Hex(0x3f8f86), PropPalette.Hex(0xd9663a),
+                PropPalette.Hex(0x4a90e2), PropPalette.Hex(0xe8a33d),
+            };
+            Color tarp = tarps[rnd.NextInt(tarps.Length)];
+
+            foreach (float px in new[] { -0.7f, 0.7f })
+                foreach (float pz in new[] { -0.55f, 0.55f })
+                    b.Add(Prim.Cylinder(0.045f, 0.045f, 1.5f, 4), PropPalette.Bamboo, new Vector3(px, 0.75f, pz));
+            b.Add(Prim.Box(1.8f, 0.08f, 1.5f), tarp, new Vector3(0, 1.5f, 0), Prim.EulerXYZ(0.1f, 0, 0));
+            b.Add(Prim.Box(1.5f, 0.1f, 0.7f), PropPalette.Wood, new Vector3(0, 0.72f, 0.2f));
+            for (int c = 0; c < 3; c++)
+            {
+                Color crate = rnd.Next() > 0.5 ? PropPalette.Banana : PropPalette.Rust;
+                b.Add(Prim.Box(0.28f, 0.22f, 0.28f), crate, new Vector3(-0.45f + c * 0.45f, 0.88f, 0.2f));
+            }
+            return b.Build("MarketStall");
+        }
+
+        /// <summary>
+        /// Parked tricycle — the single most recognisable object on a barangay street.
+        /// </summary>
+        public static Mesh Tricycle(ref Rng rnd)
+        {
+            var b = new PropBuilder();
+            Color[] cols =
+            {
+                PropPalette.Hex(0xd9442b), PropPalette.Hex(0x3f8f86),
+                PropPalette.Hex(0x4a90e2), PropPalette.Hex(0xe8a33d),
+            };
+            Color body = cols[rnd.NextInt(cols.Length)];
+
+            b.Add(Prim.Box(0.75f, 0.55f, 0.62f), body, new Vector3(0.1f, 0.42f, 0.3f));
+            b.Add(Prim.Box(0.85f, 0.07f, 0.72f), PropPalette.Rust, new Vector3(0.1f, 0.74f, 0.3f));
+            b.Add(Prim.Box(0.85f, 0.22f, 0.2f), DrainBox, new Vector3(-0.05f, 0.33f, -0.22f));
+            foreach (var (wx, wz) in new[] { (-0.42f, -0.22f), (0.42f, -0.22f), (0.3f, 0.55f) })
+                b.Add(Prim.Cylinder(0.19f, 0.19f, 0.09f, 8), PropPalette.Wood,
+                      new Vector3(wx, 0.19f, wz), Prim.EulerXYZ(0, 0, Pi / 2f));
+            return b.Build("Tricycle");
+        }
+
+        /// <summary>
+        /// The covered court, which is the social centre of a barangay and so the
+        /// largest flat man-made thing on the map.
+        ///
+        /// A slab, not a plane: a flat plane laid on a heightmap gets sliced by any
+        /// slope, which is why the court used to read as a red rag half-buried in the
+        /// ground. The caller sits it on the HIGHEST point of its footprint so
+        /// nothing can poke through.
+        /// </summary>
+        public static Mesh BasketballCourt()
+        {
+            var b = new PropBuilder();
+            Color court = PropPalette.Hex(0xc23d27);
+            Color line = PropPalette.Hex(0xf0e6d2);
+            // A real court is 28x15 m; at ~4 m per cell that is about 7x3.8 units.
+            const float CW = 7.6f, CD = 4.6f;
+
+            b.Add(Prim.Box(CW, 0.22f, CD), court, new Vector3(0, -0.03f, 0));
+            foreach (float z in new[] { -CD / 2f + 0.35f, CD / 2f - 0.35f })
+                b.Add(Prim.Box(CW - 0.5f, 0.03f, 0.09f), line, new Vector3(0, 0.09f, z));
+            b.Add(Prim.Box(0.1f, 0.03f, CD - 0.7f), line, new Vector3(0, 0.09f, 0));
+            b.Add(Prim.Torus(0.95f, 0.05f, 4, 20), line, new Vector3(0, 0.09f, 0), Prim.EulerXYZ(-Pi / 2f, 0, 0));
+            foreach (float kx in new[] { -CW / 2f + 1.15f, CW / 2f - 1.15f })
+                b.Add(Prim.Torus(0.7f, 0.045f, 4, 16), line, new Vector3(kx, 0.09f, 0), Prim.EulerXYZ(-Pi / 2f, 0, 0));
+
+            foreach (float side in new[] { -CW / 2f - 0.15f, CW / 2f + 0.15f })
+            {
+                float inward = side > 0 ? -1f : 1f;
+                b.Add(Prim.Cylinder(0.09f, 0.13f, 2.9f, 6), DrainBox, new Vector3(side, 1.45f, 0));
+                b.Add(Prim.Box(0.5f, 0.09f, 0.09f), DrainBox, new Vector3(side + inward * 0.25f, 2.55f, 0));
+                b.Add(Prim.Box(0.09f, 0.72f, 1.05f), PropPalette.Trim, new Vector3(side + inward * 0.5f, 2.5f, 0));
+                b.Add(Prim.Torus(0.24f, 0.035f, 4, 12), WarnFlag,
+                      new Vector3(side + inward * 0.78f, 2.2f, 0), Prim.EulerXYZ(-Pi / 2f, 0, 0));
+            }
+
+            // Perimeter benches: cheap, and they stop the slab reading as a bare red
+            // rectangle dropped on the grass.
+            foreach (float bz in new[] { -CD / 2f - 0.5f, CD / 2f + 0.5f })
+                foreach (float bx in new[] { -1.8f, 1.8f })
+                {
+                    b.Add(Prim.Box(1.5f, 0.1f, 0.32f), PropPalette.Wood, new Vector3(bx, 0.34f, bz));
+                    foreach (float lx in new[] { -0.6f, 0.6f })
+                        b.Add(Prim.Box(0.09f, 0.34f, 0.09f), DrainBox, new Vector3(bx + lx, 0.17f, bz));
+                }
+            return b.Build("BasketballCourt");
+        }
+
+        /// <summary>
+        /// Outrigger fishing boat. A bangka is ~8-10 m long, about 2.5 units here —
+        /// tapered hull plus a real bow so it reads as a boat from above rather than
+        /// as a brick.
+        /// </summary>
+        public static Mesh BangkaBoat(ref Rng rnd)
+        {
+            var b = new PropBuilder();
+            Color[] hulls =
+            {
+                PropPalette.Hex(0x4a90e2), PropPalette.Hex(0xd9442b),
+                PropPalette.Hex(0x3f8f86), PropPalette.Hex(0xe8a33d),
+            };
+            Color hull = hulls[rnd.NextInt(hulls.Length)];
+
+            b.Add(Prim.Box(2.5f, 0.34f, 0.56f), hull, new Vector3(0, 0.13f, 0));
+            b.Add(Prim.Cone(0.33f, 0.9f, 4), hull, new Vector3(1.6f, 0.13f, 0), Prim.EulerXYZ(0, Pi / 4f, -Pi / 2f));
+            b.Add(Prim.Cone(0.28f, 0.5f, 4), hull, new Vector3(-1.4f, 0.13f, 0), Prim.EulerXYZ(0, Pi / 4f, Pi / 2f));
+            b.Add(Prim.Box(2.5f, 0.1f, 0.66f), PropPalette.Sawali, new Vector3(0, 0.33f, 0));
+            foreach (float tx in new[] { -0.6f, 0.3f })
+                b.Add(Prim.Box(0.14f, 0.07f, 0.56f), PropPalette.Wood, new Vector3(tx, 0.4f, 0));
+            b.Add(Prim.Box(0.95f, 0.06f, 0.7f), PropPalette.Tarp, new Vector3(-0.15f, 0.95f, 0));
+            foreach (float px in new[] { -0.55f, 0.25f })
+                foreach (float pz in new[] { 0.28f, -0.28f })
+                    b.Add(Prim.Cylinder(0.03f, 0.03f, 0.6f, 4), PropPalette.Bamboo, new Vector3(px, 0.63f, pz));
+
+            // Outriggers: floats running PARALLEL to the hull on cross-booms. The old
+            // version put two long boxes across the hull, which looked like a hammer.
+            foreach (float side in new[] { -1.0f, 1.0f })
+            {
+                b.Add(Prim.Cylinder(0.08f, 0.08f, 2.1f, 5), PropPalette.Bamboo,
+                      new Vector3(0, 0.11f, side), Prim.EulerXYZ(0, 0, Pi / 2f));
+                foreach (float bx in new[] { -0.7f, 0.7f })
+                    b.Add(Prim.Box(0.09f, 0.07f, Mathf.Abs(side) + 0.1f), PropPalette.Bamboo,
+                          new Vector3(bx, 0.36f, side / 2f));
+            }
+            return b.Build("BangkaBoat");
+        }
+
+        /// <summary>
+        /// Mangroves are defined by their stilt roots standing clear of the water —
+        /// at the old 0.5u height that detail was invisible and they just looked like
+        /// green dots.
+        /// </summary>
+        public static Mesh MangroveTree()
+        {
+            var b = new PropBuilder();
+            for (int r = 0; r < 5; r++)
+            {
+                float a = (r / 5f) * Pi * 2f;
+                b.Add(Prim.Cylinder(0.045f, 0.075f, 0.75f, 4), PropPalette.Bamboo,
+                      new Vector3(Mathf.Cos(a) * 0.22f, 0.34f, Mathf.Sin(a) * 0.22f),
+                      Prim.EulerXYZ(Mathf.Cos(a) * 0.42f, 0, -Mathf.Sin(a) * 0.42f));
+            }
+            b.Add(Prim.Cylinder(0.11f, 0.17f, 0.85f, 5), PropPalette.Bamboo, new Vector3(0, 0.9f, 0));
+            b.Add(Prim.Dodecahedron(0.72f), PropPalette.PalmLeaf, new Vector3(0, 1.6f, 0),
+                  Quaternion.identity, new Vector3(1, 0.8f, 1));
+            b.Add(Prim.Dodecahedron(0.46f), PropPalette.LeafMid, new Vector3(0.4f, 1.3f, 0.28f),
+                  Quaternion.identity, new Vector3(1, 0.8f, 1));
+            b.Add(Prim.Dodecahedron(0.4f), PropPalette.LeafLight, new Vector3(-0.35f, 1.42f, -0.3f),
+                  Quaternion.identity, new Vector3(1, 0.8f, 1));
+            return b.Build("MangroveTree");
+        }
+
+        /// <summary>
+        /// Kerb inlet and pump housing, with a visible outfall pipe so it reads as
+        /// drainage infrastructure rather than a grey box.
+        /// </summary>
+        public static Mesh Drain()
+        {
+            var b = new PropBuilder();
+            Color grate = PropPalette.Hex(0x3ba99c);
+
+            b.Add(Prim.Box(1.35f, 0.42f, 1.35f), DrainBox, new Vector3(0, 0.21f, 0));
+            b.Add(Prim.Box(1.55f, 0.14f, 1.55f), PropPalette.Concrete, new Vector3(0, 0.07f, 0));
+            b.Add(Prim.Plane(0.95f, 0.95f), grate, new Vector3(0, 0.43f, 0), Prim.EulerXYZ(-Pi / 2f, 0, 0));
+            for (int i = 0; i < 4; i++)
+                b.Add(Prim.Box(0.95f, 0.05f, 0.07f), DrainBox, new Vector3(0, 0.45f, -0.34f + i * 0.23f));
+            b.Add(Prim.Box(0.5f, 0.55f, 0.5f), PropPalette.Rust, new Vector3(0.75f, 0.5f, -0.5f));
+            b.Add(Prim.Cylinder(0.1f, 0.1f, 1.0f, 6), DrainBox,
+                  new Vector3(1.2f, 0.62f, -0.5f), Prim.EulerXYZ(0, 0, Pi / 2f));
+            return b.Build("Drain");
         }
     }
 }

@@ -159,6 +159,19 @@ instrumenting both sides with a **draw counter** (`28992` vs `28757`) and then
 accepted-sample and per-branch counts, which pinned the divergence to the `h < 0.6`
 test rather than to the creators.
 
+## A bug found in the reference, fixed in both builds
+
+The urban preset's roads were invisible — in the web build too. The ribbon
+generator wound its triangles `(a,c,b)/(b,c,d)`, which points an east-west
+carriageway's geometric normal at the ground, so every road was back-face culled.
+Only the north-south cross streets survived, because a ribbon running the other way
+winds the opposite way. Corrected to `(a,b,c)/(b,d,c)` in `ThreeCanvas.jsx` and
+`PropScatter`.
+
+Worth noting how it was nearly missed: the Unity render matched the reference
+exactly, which looked like success. Faithfulness to the reference is only evidence
+of a correct *port* — it says nothing about whether the reference is right.
+
 ## Status
 
 - [x] Flood simulation (`step`) — verified against JS
@@ -171,9 +184,11 @@ test rather than to the creators.
 - [x] Outerland ring mesh + open water — heights now bit-identical to the reference
 - [x] Props: buildings, vegetation, set dressing — placement bit-identical to the web build
 - [x] World dressing outside the sandbox — forest, hamlets and city sprawl to the horizon
-- [ ] Remaining props: basketball court, bangka boats, mangroves/drains (sim-driven),
-      urban roads and street furniture, market stalls, tricycles, street lamps
+- [x] Basketball court, bangka boats, mangroves and drain pumps
+- [x] Urban streets, footbridges, utility poles, market stalls, tricycles
 - [ ] UI — the piece that genuinely has to be rebuilt
+
+Every prop in `src/ThreeCanvas.jsx` is now ported. What remains is the interface.
 
 The web build in `src/` remains the reference implementation and is not
 deprecated by this directory.
