@@ -28,13 +28,32 @@ namespace Habagat.Render
         /// <summary>The single water displacement both sheets share.</summary>
         public float SwellAmp { get; private set; } = 0.035f;
 
+        /// <summary>
+        /// Mean depth the rain is lying at on the play area's LAND — the level the
+        /// world outside floods to. Eased at 0.08 rather than tracked exactly: the
+        /// outside world is scenery catching up, not a second simulation.
+        /// </summary>
+        public double BgDepth { get; private set; }
+
         private readonly RainSystem _rain;
         private float _sunIntensity = 1.35f;
 
         public Weather(Transform parent) => _rain = new RainSystem(parent);
 
-        public void Tick(WorldBuilder world, float rain, bool storm, float dt)
+        public void Tick(WorldBuilder world, FloodSim sim, float rain, bool storm, float dt)
         {
+            // How deep the rain is lying inside the sandbox. Sea cells are excluded —
+            // the ocean is already at sea level and averaging it in would drag the
+            // figure toward zero however hard it rained.
+            int landCells = 0;
+            double landWaterSum = 0;
+            var elev = sim.Elev;
+            var water = sim.Water;
+            for (int i = 0; i < elev.Length; i++)
+                if (elev[i] > FloodSim.SeaLevel) { landCells++; landWaterSum += water[i]; }
+            double target = landCells > 0 ? landWaterSum / landCells : 0;
+            BgDepth += (target - BgDepth) * 0.08;
+
             float norm = Mathf.Clamp01(rain / 10f);
             float targetWet = storm ? 1f : norm * 0.85f;
             // Deliberately slow. Ground that darkens the instant the slider moves

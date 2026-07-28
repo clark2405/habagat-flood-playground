@@ -170,6 +170,15 @@ namespace Habagat.Render
         public void RefreshWater(FloodSim sim, PresetType type, double time, double swellAmp = 0.035) =>
             Water.UpdateGeometry(sim, TerrainPalette.For(type), time, swellAmp);
 
+        /// <summary>
+        /// Bring the open water outside the sandbox up to match. Must run AFTER
+        /// <see cref="RefreshWater"/>, which is what solves the relaxed surface the
+        /// border level is read from.
+        /// </summary>
+        public void RefreshOuterWater(FloodSim sim, PresetType type, double bgDepth,
+                                      double time, double swellAmp) =>
+            Outer.UpdateWater(sim, Water.Surface, TerrainPalette.For(type), bgDepth, time, swellAmp);
+
         public void Destroy()
         {
             if (Root == null) return;

@@ -14,69 +14,39 @@ hazards that have already cost time.
   furniture, boats, mangroves, drains, and the world dressing past the border
 - Placement bit-exact with the browser (shared mulberry32 stream)
 - A runtime scene — `Assets/Scenes/Habagat.unity`, press Play
+- Weather: rain, ground wetness, storm sky, lightning, boats riding the swell
+- The world outside the sandbox floods with the play area, so a storm no longer
+  renders as a rectangle of water in a dry landscape
 - One construction path: `WorldBuilder` is used by both the play scene and the
   screenshot harness, so a screenshot is evidence about what actually runs
 
 ## Next up, in order
 
-### 1. Flood the world outside the sandbox  ← next
-Reference: the block at `ThreeCanvas.jsx` ~2303, "The world outside the sandbox,
-reacting to the same weather".
-
-**This is now visibly needed.** With weather in, a heavy storm fills the play area
-and stops dead at the border, so the flood renders as a hard-edged rectangle of
-water sitting in a bone-dry landscape — the most glaring possible way to advertise
-where the sandbox ends, and exactly what the outerland exists to prevent. The web
-build does not have this problem because its open water welds to the sandbox's own
-water level at ring 0 and relaxes outward to sea level.
-
-It needs four things that do not exist on the C# side yet:
-
-- `bgDepth` — mean rainwater depth over the play area's land cells, eased at 0.08,
-  which is the level the outside world floods to
-- `outerBorderSurf[p]` — per border point, taken from the *relaxed* water surface so
-  the two sheets agree exactly. Only low-lying shoreline cells (`elev <= SEA_LEVEL +
-  0.8`) may raise it, or rain pooling on a hillside drags the horizon's water up
-- `waterRelax[j]` — per-ring falloff from the border level back to sea level
-- `outSmoothY` — smoothed ring heights, so flooded land meets the open sea flush
-  instead of standing above it
-
-`WaterMeshBuilder` computes the relaxed surface internally and would need to expose
-it. Do not half-build this: the four arrays are coupled, and a partial version will
-look worse than the hard edge.
-
-### 2. Weather — done, with one gap
-Rain particles, storm slant, ground wetness, water smoothness, fog and lightning
-all landed. Boats now ride the swell.
-
-Still missing: **per-preset environment**. `WorldBuilder` and `Weather` hardcode
-`ENV.coastal`, so fog colour, sun tint and the clear-sky palette are identical on
-all four maps. Storm values are shared in the reference, so only the clear-weather
-side needs the table.
-
-Also: mangroves and drains are built once at world-build time and never rebuilt,
-which blocks interactive painting. Unlike the boats they do not move, so they can
-stay baked — they just need a rebuild trigger.
-
-### 3. Sky and backdrop
+### 1. Sky and backdrop  ← next
 Reference: §4 (gradient sky dome) and §7 (distant silhouettes).
 
 Right now the camera just clears to the fog colour. The dome's horizon band must be
 painted the *exact* fog colour — that identity is what makes land dissolve into sky
 with no seam.
 
-### 4. Interaction
+### 2. Interaction
 Reference: §13 (brush cursor ring) and `handlePaint` in `FloodPlayground.jsx`.
 
 Raycast onto the terrain, convert the hit to a grid cell, drive `FloodSim.Paint`.
 The tools already exist in C# and are fingerprint-verified; this is the input
 plumbing and the cursor ring. Painting must trigger a props rebuild.
 
-### 5. UI
+### 3. UI
 The one piece that is genuinely a rewrite rather than a port: preset switcher,
 tool palette, stats readout, storm button, rain slider. React does not translate.
 
-### 6. Loose ends
+### 4. Loose ends
+- **Per-preset environment.** `WorldBuilder` and `Weather` hardcode `ENV.coastal`, so
+  fog colour, sun tint and the clear-sky palette are identical on all four maps.
+  Storm values are shared in the reference, so only the clear-weather side needs it.
+- **Mangroves and drains** are built once at world-build time and never rebuilt,
+  which blocks interactive painting. They do not move, so they can stay baked — they
+  just need a rebuild trigger.
 - **Ambient occlusion.** The web build's GTAO pass is a large part of why props sit
   in the ground rather than float on it; Unity has no equivalent yet. `thickness`
   mattering more than `radius` is recorded in `CLAUDE.md`.

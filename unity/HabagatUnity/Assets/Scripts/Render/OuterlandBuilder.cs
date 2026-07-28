@@ -52,6 +52,13 @@ namespace Habagat.Render
         private int _p, _rings;
         private float[] _baseY;
         private Vector3[] _landVerts;
+        private float[] _smoothY;      // blurred ring heights, for the flood level
+        private double[] _waterRelax;  // per-ring falloff from border level to sea
+        private double[] _owTint;      // world-space dither, cached from BuildWater
+        private double[] _borderSurf;  // current water level at each border point
+        private int _swellRings;       // rings near enough to be worth displacing
+        private Vector3[] _waterVerts;
+        private Color[] _waterColors;
 
         public Mesh Land { get; private set; }
         public Mesh Water { get; private set; }
@@ -235,7 +242,136 @@ namespace Habagat.Render
             Land.RecalculateNormals();
             Land.RecalculateBounds();
 
+            BuildSmoothing();
             BuildWater(palette, tris);
+        }
+
+        /// <summary>
+        /// Raise the open water to match whatever the sandbox is doing.
+        ///
+        /// Without this a downpour fills the play area and stops dead at the border,
+        /// so the flood renders as a hard-edged rectangle of water sitting in a
+        /// bone-dry landscape — the most glaring possible way to advertise where the
+        /// sandbox ends, and precisely what this whole mesh exists to prevent.
+        ///
+        /// The outside world has no simulation of its own. It welds to the play
+        /// area's OWN water level at ring 0 and relaxes outward to sea level, so a
+        /// surge at the shore rolls on past the border instead of stopping at it, and
+        /// it floods inland to <paramref name="bgDepth"/> — the mean depth the rain
+        /// is lying at on the play area's land.
+        /// </summary>
+        /// <param name="playSurface">
+        /// The play area's RELAXED surface (<see cref="WaterMeshBuilder.Surface"/>),
+        /// not raw water depth. Using the relaxed one is what lets the two sheets
+        /// agree exactly along the seam.
+        /// </param>
+        public void UpdateWater(FloodSim sim, double[] playSurface, in TerrainPalette palette,
+                                double bgDepth, double time, double swellAmp)
+        {
+            var elev = sim.Elev;
+            var wS = palette.WaterShallow;
+            var wD = palette.WaterDeep;
+
+            // Only low-lying shoreline cells may push the level up. Otherwise rain
+            // pooling on a hillside inside the sandbox drags the whole horizon's
+            // water up with it.
+            for (int p = 0; p < _p; p++)
+            {
+                int bi = _border[p].I;
+                double bs = playSurface[bi];
+                _borderSurf[p] = (bs > SeaLevel && bs > WaterMeshBuilder.NoWaterLevel
+                                  && elev[bi] <= SeaLevel + 0.8)
+                    ? Math.Min(bs, SeaLevel + 2.0)
+                    : SeaLevel;
+            }
+
+            // Displacement is only worth computing while the sea is actually moving.
+            bool animating = swellAmp > 0.09;
+            int jMax = animating ? _swellRings : 0;
+
+            for (int p = 0; p < _p; p++)
+            {
+                double sw = _borderSurf[p];
+                for (int j = 0; j <= _rings; j++)
+                {
+                    int k = j * _p + p;
+                    double h = _baseY[k], sm = _smoothY[k];
+                    double sea = sw + (SeaLevel - sw) * _waterRelax[j];
+                    // Rain lies at a level set by the SMOOTHED ground and fades out as
+                    // that ground drops to the waterline, so flooded land meets the
+                    // open sea flush instead of standing above it. Depth is measured
+                    // against the REAL ground, so high ground still emerges as dry
+                    // islands.
+                    double level = Math.Max(sea, sea + (sm + bgDepth - sea) * TerrainColors.Smooth(-0.2, 0.9, sm));
+                    double depth = level - h;
+
+                    float wx = _landVerts[k].x, wz = _landVerts[k].z;
+                    double y = level;
+                    if (depth > 0 && j <= jMax)
+                        y = level + WaterMeshBuilder.SwellAt(wx, wz, time) * swellAmp * Math.Min(1, depth / 0.8);
+                    _waterVerts[k] = new Vector3(wx, (float)y, wz);
+
+                    if (depth <= 0) { _waterColors[k].a = 0f; continue; }
+                    double kk = Math.Min(1, Math.Max(0,
+                        TerrainColors.Smooth(0.02, 1.7, depth) + _owTint[k] * 1.1));
+                    _waterColors[k] = new Color(
+                        (float)(wS.R + (wD.R - wS.R) * kk),
+                        (float)(wS.G + (wD.G - wS.G) * kk),
+                        (float)(wS.B + (wD.B - wS.B) * kk),
+                        (float)(0.25 + 0.7 * kk));
+                }
+            }
+
+            Water.vertices = _waterVerts;
+            Water.colors = _waterColors;
+        }
+
+        /// <summary>
+        /// A blurred copy of the ring heights, used only for the flood level.
+        ///
+        /// Rain lying on the real, noisy heightfield terraces into concentric
+        /// contours, because each ring is a closed loop at nearly one height. Blurring
+        /// the level the water settles to removes that without touching the ground
+        /// itself. The blur is faded in from ring 0 so the border still matches the
+        /// play area's own water level exactly.
+        /// </summary>
+        private void BuildSmoothing()
+        {
+            int n = (_rings + 1) * _p;
+            _smoothY = new float[n];
+            System.Array.Copy(_baseY, _smoothY, n);
+            var tmp = new float[n];
+
+            for (int pass = 0; pass < 5; pass++)
+            {
+                System.Array.Copy(_smoothY, tmp, n);
+                for (int j = 0; j <= _rings; j++)
+                {
+                    double w = TerrainColors.Smooth(0, 6, j); // ring 0 stays untouched
+                    if (w <= 0) continue;
+                    for (int p = 0; p < _p; p++)
+                    {
+                        int k = j * _p + p;
+                        double avg = (tmp[k]
+                            + tmp[j * _p + ((p + 1) % _p)]
+                            + tmp[j * _p + ((p - 1 + _p) % _p)]
+                            + tmp[Math.Max(j - 1, 0) * _p + p]
+                            + tmp[Math.Min(j + 1, _rings) * _p + p]) / 5.0;
+                        _smoothY[k] = (float)(tmp[k] + (avg - tmp[k]) * w);
+                    }
+                }
+            }
+
+            _waterRelax = new double[_rings + 1];
+            for (int j = 0; j <= _rings; j++)
+                _waterRelax[j] = TerrainColors.Smooth(0, 0.22, j / (double)_rings);
+
+            // Beyond ~120 units the swell is smaller than a pixel; displacing those
+            // rings is pure cost.
+            _swellRings = _rings;
+            for (int j = 0; j <= _rings; j++) if (_ringD[j] <= 120) _swellRings = j;
+
+            _borderSurf = new double[_p];
         }
 
         /// <summary>
@@ -249,6 +385,7 @@ namespace Habagat.Render
             int n = (_rings + 1) * _p;
             var verts = new Vector3[n];
             var colors = new Color[n];
+            _owTint = new double[n];
             var wS = palette.WaterShallow;
             var wD = palette.WaterDeep;
 
@@ -266,8 +403,9 @@ namespace Habagat.Render
                     double depth = SeaLevel - _baseY[k];
                     // Same world-space dither the ground and play-area water use, or
                     // the long shallow gradient bands into visible contours.
+                    _owTint[k] = TerrainColors.GroundTint(wx, wz);
                     double kk = Math.Min(1, Math.Max(0,
-                        TerrainColors.Smooth(0.02, 1.7, depth) + TerrainColors.GroundTint(wx, wz) * 1.1));
+                        TerrainColors.Smooth(0.02, 1.7, depth) + _owTint[k] * 1.1));
                     colors[k] = new Color(
                         (float)(wS.R + (wD.R - wS.R) * kk),
                         (float)(wS.G + (wD.G - wS.G) * kk),
@@ -276,6 +414,8 @@ namespace Habagat.Render
                 }
             }
 
+            _waterVerts = verts;
+            _waterColors = colors;
             Water = new Mesh { name = "HabagatOuterWater", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             Water.vertices = verts;
             Water.colors = colors;
