@@ -51,5 +51,50 @@ namespace Habagat
                 return _s / 0x7fffffff;
             }
         }
+
+        /// <summary>
+        /// FNV-1a over UTF-16 code units — the web build's <c>strSeed</c>.
+        /// <c>charCodeAt</c> returns a UTF-16 code unit, which is exactly a C#
+        /// <c>char</c>, so this one crosses over without any trickery.
+        /// </summary>
+        public static uint StrSeed(string s)
+        {
+            uint h = 2166136261u;
+            foreach (char c in s) { h ^= c; h = unchecked(h * 16777619u); }
+            return h;
+        }
+
+        /// <summary>
+        /// mulberry32 — the web build's <c>seededRng</c>, used for prop placement.
+        ///
+        /// Unlike <see cref="Lcg"/> this needs no double-precision theatre. Every
+        /// step is <c>Math.imul</c>, <c>^</c> or <c>&gt;&gt;&gt;</c>, all of which
+        /// are exact 32-bit integer operations in JavaScript, so plain
+        /// <c>uint</c> arithmetic reproduces it bit for bit. That means Unity can
+        /// place the scatter in the *same* spots as the browser, which is what
+        /// makes comparing the two screenshots meaningful rather than vibes.
+        /// </summary>
+        public struct Rng
+        {
+            private uint _s;
+
+            public Rng(uint seed) { _s = seed; }
+
+            public double Next()
+            {
+                unchecked
+                {
+                    _s += 0x6d2b79f5u;
+                    uint t = (_s ^ (_s >> 15)) * (1u | _s);
+                    t = (t + (t ^ (t >> 7)) * (61u | t)) ^ t;
+                    return (t ^ (t >> 14)) / 4294967296.0;
+                }
+            }
+
+            /// <summary>JS `Math.floor(rnd() * n)`.</summary>
+            public int NextInt(int n) => (int)(Next() * n);
+
+            public float NextF() => (float)Next();
+        }
     }
 }

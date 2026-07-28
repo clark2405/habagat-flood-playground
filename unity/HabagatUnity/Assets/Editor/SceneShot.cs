@@ -96,6 +96,44 @@ namespace HabagatEditor
                 olr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 olr.receiveShadows = false;
 
+                // ── Props ────────────────────────────────────────────────────
+                // Built before the sim is advanced: props sit on the DRY terrain
+                // and do not react to the flood, exactly as in the web build, so
+                // running them off a flooded heightmap would sink the barangay.
+                // `-props 0` renders bare landform, which is what the terrain and
+                // outerland work was verified against.
+                if (Arg("-props", "1") != "0")
+                {
+                    var propMat = new Material(shader);
+                    // Props are the only thing that packs emissive into vertex
+                    // alpha — the glass. Terrain leaves this at 0.
+                    propMat.SetFloat("_EmissiveFromAlpha", 1f);
+
+                    var batches = PropScatter.Build(sim, type);
+                    // The world outside the sandbox gets dressed with the same kinds
+                    // of object, thinning with distance. Without it the play area is
+                    // the only place on the map where anything is standing up, and
+                    // the border shows however well the terrain is welded.
+                    batches.AddRange(WorldDress.Build(outer, type));
+
+                    int kinds = 0, instances = 0;
+                    foreach (var batch in batches)
+                    {
+                        var go = new GameObject("Props_" + batch.Mesh.name);
+                        go.transform.SetParent(root.transform);
+                        go.AddComponent<MeshFilter>().sharedMesh = batch.Bake(batch.Mesh.name + "_baked");
+                        var pr = go.AddComponent<MeshRenderer>();
+                        pr.sharedMaterial = propMat;
+                        pr.shadowCastingMode = batch.CastShadow
+                            ? UnityEngine.Rendering.ShadowCastingMode.On
+                            : UnityEngine.Rendering.ShadowCastingMode.Off;
+                        pr.receiveShadows = false;
+                        kinds++;
+                        instances += batch.Instances.Count;
+                    }
+                    Debug.Log($"[SceneShot] props: {instances} objects across {kinds} kinds");
+                }
+
                 // ── Water ────────────────────────────────────────────────────
                 // Optionally advance the sim first, so a shot can show a flood
                 // rather than only the starting waterline.
@@ -173,8 +211,23 @@ namespace HabagatEditor
                 // the mesh is: the scene was reflected into left-handed space.
                 // `-view top` gives a plan view, which is the only framing that
                 // makes an orientation mismatch against the reference unambiguous.
-                switch (Arg("-view", "iso"))
+                // `-focus x,z -dist d` frames a close-up on any world position, which
+                // is how a single suspect prop gets inspected. Reasoning about what a
+                // 5-pixel smudge in the wide shot "must be" is exactly how the
+                // outerland investigation nearly invented a bug that did not exist.
+                string focus = Arg("-focus", "");
+                switch (focus != "" ? "focus" : Arg("-view", "iso"))
                 {
+                    case "focus":
+                    {
+                        var parts = focus.Split(',');
+                        float fx = float.Parse(parts[0]), fz = float.Parse(parts[1]);
+                        float d = float.Parse(Arg("-dist", "14"));
+                        var target = new Vector3(fx, 0, fz);
+                        cam.transform.position = target + new Vector3(d * 0.7f, d * 0.62f, -d * 0.7f);
+                        cam.transform.LookAt(target);
+                        break;
+                    }
                     case "top":
                         cam.transform.position = new Vector3(0, 92, 0);
                         cam.transform.rotation = Quaternion.Euler(90, 0, 0);

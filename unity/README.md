@@ -118,6 +118,47 @@ and drive it from the browser. Two traps:
   `Object.defineProperty(scene.fog, 'near', { get: () => 99000, set: () => {} })`,
   leaving `fog.color` writable since the loop copies into it.
 
+## The mirror applies to noise inputs too, not just positions
+
+Found while porting the world dressing, and the most expensive bug of the port so
+far. The map is reflected into Unity's left-handed space, so a point at Unity `z`
+is at `-z` in the reference. **Anything that feeds a world position into `Fbm` has
+to flip Z back first** (`TerrainColors.RefZ`) — otherwise it reads a different part
+of the noise field, and the result is not the reference mirrored, it is an
+unrelated landform that merely looks plausible.
+
+Two things kept this hidden:
+
+- The outerland's seam multiplies every noise term by a ramp that is zero at
+  `t = 0`, so **ring 0 matches the reference exactly no matter what**. Spot-checking
+  the seam proves nothing about the rest.
+- The earlier plan-view check compared the *outline* and asked only whether it was
+  organic. It was. It was also the wrong outline.
+
+It surfaced indirectly: every distant house rendered purple instead of terracotta.
+That colour is one RNG draw from a stream shared with the placement sampler, so a
+height field that differs shifts which samples pass `h < 0.6`, and every draw after
+it. Cosmetic symptom, structural cause.
+
+Two smaller precision rules came out of the same hunt, both correct by construction
+and worth keeping:
+
+- `ringD` and `outBaseY` are `Float32Array` in JS, so the C# copies are `float[]`.
+  They feed threshold tests (`d > 215`, `h < 0.6`), and a double compares
+  differently near the boundary.
+- Border coordinates are plain JS numbers — doubles. `TerrainMeshBuilder.VxD/VzD`
+  exist so anything feeding a *decision* is computed in double, while vertices stay
+  float.
+
+### How to check a stream is really in sync
+
+Counts alone are not evidence. The first comparison showed `tree=620 scrub=520
+house=150` on both sides and looked like proof — but all three were at their caps,
+so they would have matched under almost any stream. What actually localised it was
+instrumenting both sides with a **draw counter** (`28992` vs `28757`) and then
+accepted-sample and per-branch counts, which pinned the divergence to the `h < 0.6`
+test rather than to the creators.
+
 ## Status
 
 - [x] Flood simulation (`step`) — verified against JS
@@ -127,8 +168,11 @@ and drive it from the browser. Two traps:
 - [x] Unity project imports cleanly
 - [x] Fingerprint confirmed *inside* Unity — identical on all 52 lines
 - [x] Terrain and water mesh generation
-- [x] Outerland ring mesh + open water — outline verified against the reference
-- [ ] Props and scatter — art spec is in `src/ThreeCanvas.jsx`
+- [x] Outerland ring mesh + open water — heights now bit-identical to the reference
+- [x] Props: buildings, vegetation, set dressing — placement bit-identical to the web build
+- [x] World dressing outside the sandbox — forest, hamlets and city sprawl to the horizon
+- [ ] Remaining props: basketball court, bangka boats, mangroves/drains (sim-driven),
+      urban roads and street furniture, market stalls, tricycles, street lamps
 - [ ] UI — the piece that genuinely has to be rebuilt
 
 The web build in `src/` remains the reference implementation and is not

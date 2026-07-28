@@ -90,11 +90,35 @@ before touching the rendering side:
   winding is swapped to match the reflected orientation, and the analytic normal's
   `gz` term drops its leading minus. Camera and sun are mirrored too. Anything new
   that positions objects in world space must follow the same convention.
+
+  The mirror reaches further than positions, and both extensions cost real time to
+  find:
+
+  **Noise inputs must be flipped back.** A point at Unity `z` is at `-z` in the
+  reference, so anything feeding a world position into `Fbm` has to go through
+  `TerrainColors.RefZ` first. Sampling at the Unity coordinate reads a different
+  part of the noise field — not the reference mirrored, an unrelated landform that
+  merely looks plausible. The outerland's zero-at-`t=0` seam ramp hides this
+  completely at ring 0, so checking the seam proves nothing.
+
+  **Prop geometry must be mirrored, not just prop placement.** `PropBuilder.Build`
+  flips Z and reverses winding on the way out. Without it every building keeps its
+  original chirality and presents its back to the default isometric camera —
+  porticos, doors and windows all end up on the hidden side.
 - **Lighting does not transfer numerically.** three.js folds a `1/PI` into its
   diffuse BRDF that URP's Lambert does not, so ambient carried across literally is
   roughly double. And the web build renders through ACES filmic tone mapping —
   every colour in the ramp was chosen against that curve, so URP needs a
   Tonemapping volume override or the same colours come out pale.
+
+**Props are ported and placed bit-identically to the web build.** `Prim` supplies
+parametric primitives at three.js's angular convention (Unity ships no cone, and the
+low segment counts are the art direction), `PropBuilder` bakes each part's colour
+into vertex colours so a whole prop is one mesh and one draw call, `PropLibrary`
+holds the creators and `PropScatter`/`WorldDress` the placement. The placement RNG
+(`JsMath.Rng`, mulberry32) is bit-exact with the browser's, so the *order and count*
+of draws inside a creator is load-bearing — an extra `Next()` shifts every prop
+placed after it.
 
 Render a headless screenshot to check any visual change:
 
@@ -106,6 +130,9 @@ Unity.exe -batchmode -quit -projectPath unity/HabagatUnity \
 
 Note: no `-nographics` — it needs a real graphics device. `-view top` gives a plan
 view, which is the only framing that makes an orientation mismatch unambiguous.
+`-focus x,z -dist d` frames a close-up on any world position — use it instead of
+reasoning about what a small smudge in the wide shot must be. `-props 0` renders
+bare landform.
 
 ## The C# simulation port
 

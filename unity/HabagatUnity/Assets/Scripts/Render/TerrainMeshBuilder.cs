@@ -30,6 +30,17 @@ namespace Habagat.Render
 
         public static float Vx(int col) => -W / 2f + col * DX;
 
+        // Double-precision twins. The web build has no float at all in this
+        // arithmetic — a plain JS number is a double — so anything that FEEDS a
+        // decision rather than a vertex has to be computed the same way. The
+        // outerland's border points do exactly that: their coordinates go through
+        // fbm into the ring heights, and those heights are then compared against
+        // `h < 0.6` by the world dressing. Rounding them to float first flips
+        // samples near the threshold and desynchronises the shared RNG stream.
+        public static double VxD(int col) => -W / 2.0 + col * ((double)W / (W - 1));
+
+        public static double VzD(int row) => H / 2.0 - row * ((double)H / (H - 1));
+
         // Z is NEGATED relative to the web build's `-H/2 + row*DZ`. three.js is
         // right-handed and Unity is left-handed, so laying the grid out identically
         // produces a mirror image of the same map — the coast ends up on the wrong

@@ -135,10 +135,34 @@ namespace Habagat
         /// colour over enormous stretches, which is most of what made the web
         /// version's landscape read as dry and bland.
         /// </summary>
-        public static double GroundTint(double wx, double wz) =>
-            (Fbm(wx * 0.055 + 13.7, wz * 0.055 + 31.1) - 0.5) * 0.105 +
-            (Fbm(wx * 0.34 + 71.3, wz * 0.34 + 19.7) - 0.5) * 0.075 +
-            (Fbm(wx * 1.13 + 3.9, wz * 1.13 + 47.1) - 0.5) * 0.035;
+        /// <remarks>
+        /// Takes a UNITY world position and flips Z back into the reference frame
+        /// before sampling — see <see cref="RefZ"/>.
+        /// </remarks>
+        public static double GroundTint(double wx, double wzUnity)
+        {
+            double wz = RefZ(wzUnity);
+            return (Fbm(wx * 0.055 + 13.7, wz * 0.055 + 31.1) - 0.5) * 0.105 +
+                   (Fbm(wx * 0.34 + 71.3, wz * 0.34 + 19.7) - 0.5) * 0.075 +
+                   (Fbm(wx * 1.13 + 3.9, wz * 1.13 + 47.1) - 0.5) * 0.035;
+        }
+
+        /// <summary>
+        /// Convert a Unity world Z back to the coordinate the web build would have
+        /// used, for the purpose of sampling noise.
+        ///
+        /// This is easy to miss and it is not cosmetic. The map is mirrored into
+        /// Unity's left-handed space, so a point at Unity Z sits at -Z in the
+        /// reference. Sampling <c>Fbm</c> at the Unity coordinate therefore reads a
+        /// DIFFERENT part of the noise field, and the result is not the reference
+        /// mirrored — it is an unrelated landform that merely looks similar.
+        ///
+        /// It stayed hidden for a while because the outerland's seam ring multiplies
+        /// every noise term by a ramp that is zero at t=0, so ring 0 matches the
+        /// reference exactly no matter what this returns. The divergence only opens
+        /// up further out, where nothing was being compared numerically.
+        /// </summary>
+        public static double RefZ(double unityZ) => -unityZ;
 
         /// <summary>
         /// Underwater ground darkens with depth — a bright sand shelf that stops at
