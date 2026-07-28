@@ -186,9 +186,13 @@ of a correct *port* — it says nothing about whether the reference is right.
 - [x] World dressing outside the sandbox — forest, hamlets and city sprawl to the horizon
 - [x] Basketball court, bangka boats, mangroves and drain pumps
 - [x] Urban streets, footbridges, utility poles, market stalls, tricycles
+- [x] Runtime scene — `Assets/Scenes/Habagat.unity`, shared construction path
+- [ ] Weather and the animation loop
+- [ ] Sky dome and backdrop silhouettes
+- [ ] Interaction — raycast painting and the brush cursor
 - [ ] UI — the piece that genuinely has to be rebuilt
 
-Every prop in `src/ThreeCanvas.jsx` is now ported. What remains is the interface.
+See `TASK.md` at the repo root for the ordered list and the known blockers.
 
 The web build in `src/` remains the reference implementation and is not
 deprecated by this directory.

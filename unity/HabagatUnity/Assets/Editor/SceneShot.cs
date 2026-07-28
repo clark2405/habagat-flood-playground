@@ -51,169 +51,53 @@ namespace HabagatEditor
             int width = int.Parse(Arg("-shotW", "1600"));
             int height = int.Parse(Arg("-shotH", "900"));
 
-            var (type, seed) = ParsePreset(presetName);
-            var sim = FloodSim.FromPreset(type, seed);
-            var palette = TerrainPalette.For(type);
+            var (type, _) = ParsePreset(presetName);
 
             var root = new GameObject("HabagatShot");
             try
             {
-                // ── Terrain ──────────────────────────────────────────────────
-                var builder = new TerrainMeshBuilder();
-                var mesh = builder.Build(sim.Elev, palette);
+                // ── The world ────────────────────────────────────────────────
+                // Built through the SAME component the play scene uses, so this
+                // screenshot is evidence about what actually runs rather than about
+                // a parallel scene the harness assembled for itself.
+                var worldGo = new GameObject("World");
+                worldGo.transform.SetParent(root.transform);
+                var world = worldGo.AddComponent<HabagatWorld>();
+                world.preset = type;
+                world.buildProps = Arg("-props", "1") != "0";
+                world.running = false; // the harness advances the sim explicitly
 
-                var terrain = new GameObject("Terrain");
-                terrain.transform.SetParent(root.transform);
-                terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
-                var mr = terrain.AddComponent<MeshRenderer>();
-
-                var shader = Shader.Find("Habagat/VertexColorLit");
-                if (shader == null)
+                // Mangroves and drains are painted, not scattered, so a fresh sim has
+                // none. `-paint mangrove` / `-paint drain` exercises that path for a
+                // screenshot; the real scene gets them from the player.
+                string paint = Arg("-paint", "");
+                world.Rebuild(s =>
                 {
-                    Debug.LogError("[SceneShot] Habagat/VertexColorLit not found — shader failed to compile?");
+                    if (paint == "") return;
+                    var tool = paint == "drain" ? FloodSim.Tool.DrainPump : FloodSim.Tool.Mangrove;
+                    for (int y = 8; y < FloodSim.H - 8; y += 9)
+                        for (int x = 8; x < FloodSim.W - 8; x += 11)
+                            s.Paint(tool, x, y, 2);
+                });
+                if (world.World == null)
+                {
                     EditorApplication.Exit(2);
                     return;
                 }
-                mr.sharedMaterial = new Material(shader);
-                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-                mr.receiveShadows = true;
 
-                // ── The world outside the sandbox ────────────────────────────
-                // Deliberately NOT receiving shadows: the shadow frustum only
-                // covers the play area, and sampling it out here paints a hard
-                // straight frustum edge across the landscape — exactly the kind of
-                // artificial line this whole mesh exists to remove.
-                var outer = new OuterlandBuilder();
-                outer.Build(sim, palette, OuterConfig.For(type));
-
-                var outerLand = new GameObject("Outerland");
-                outerLand.transform.SetParent(root.transform);
-                outerLand.AddComponent<MeshFilter>().sharedMesh = outer.Land;
-                var olr = outerLand.AddComponent<MeshRenderer>();
-                var outerMat = new Material(shader);
-                outerMat.SetFloat("_Cull", 0f); // double-sided, like the web build
-                olr.sharedMaterial = outerMat;
-                olr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                olr.receiveShadows = false;
-
-                // ── Props ────────────────────────────────────────────────────
-                // Built before the sim is advanced: props sit on the DRY terrain
-                // and do not react to the flood, exactly as in the web build, so
-                // running them off a flooded heightmap would sink the barangay.
-                // `-props 0` renders bare landform, which is what the terrain and
-                // outerland work was verified against.
-                if (Arg("-props", "1") != "0")
-                {
-                    var propMat = new Material(shader);
-                    // Props are the only thing that packs emissive into vertex
-                    // alpha — the glass. Terrain leaves this at 0.
-                    propMat.SetFloat("_EmissiveFromAlpha", 1f);
-
-                    // Mangroves and drains are painted, not scattered, so a fresh sim
-                    // has none. `-paint mangrove` / `-paint drain` exercises that path
-                    // for a screenshot; the real scene gets them from the player.
-                    string paint = Arg("-paint", "");
-                    if (paint != "")
-                    {
-                        var tool = paint == "drain" ? FloodSim.Tool.DrainPump : FloodSim.Tool.Mangrove;
-                        for (int y = 8; y < FloodSim.H - 8; y += 9)
-                            for (int x = 8; x < FloodSim.W - 8; x += 11)
-                                sim.Paint(tool, x, y, 2);
-                    }
-
-                    var batches = PropScatter.Build(sim, type);
-                    batches.AddRange(PropScatter.BuildSimProps(sim));
-                    // The world outside the sandbox gets dressed with the same kinds
-                    // of object, thinning with distance. Without it the play area is
-                    // the only place on the map where anything is standing up, and
-                    // the border shows however well the terrain is welded.
-                    batches.AddRange(WorldDress.Build(outer, type));
-
-                    int kinds = 0, instances = 0;
-                    foreach (var batch in batches)
-                    {
-                        var go = new GameObject("Props_" + batch.Mesh.name);
-                        go.transform.SetParent(root.transform);
-                        go.AddComponent<MeshFilter>().sharedMesh = batch.Bake(batch.Mesh.name + "_baked");
-                        var pr = go.AddComponent<MeshRenderer>();
-                        pr.sharedMaterial = propMat;
-                        pr.shadowCastingMode = batch.CastShadow
-                            ? UnityEngine.Rendering.ShadowCastingMode.On
-                            : UnityEngine.Rendering.ShadowCastingMode.Off;
-                        pr.receiveShadows = false;
-                        kinds++;
-                        instances += batch.Instances.Count;
-                    }
-                    Debug.Log($"[SceneShot] props: {instances} objects across {kinds} kinds");
-                }
-
-                // ── Water ────────────────────────────────────────────────────
-                // Optionally advance the sim first, so a shot can show a flood
-                // rather than only the starting waterline.
+                // Optionally advance the sim, so a shot can show a flood rather than
+                // only the starting waterline.
                 int ticks = int.Parse(Arg("-ticks", "0"));
                 float rain = float.Parse(Arg("-rain", "0"));
                 bool storm = Arg("-storm", "0") == "1";
-                for (int i = 0; i < ticks; i++) sim.Step(rain, storm);
+                world.Advance(ticks, rain, storm);
 
-                var waterBuilder = new WaterMeshBuilder();
-                var waterMesh = waterBuilder.Build(sim, palette);
-
-                var water = new GameObject("Water");
-                water.transform.SetParent(root.transform);
-                water.AddComponent<MeshFilter>().sharedMesh = waterMesh;
-                var wr = water.AddComponent<MeshRenderer>();
-                var waterShader = Shader.Find("Habagat/WaterVertexColor");
-                if (waterShader == null)
-                {
-                    Debug.LogError("[SceneShot] Habagat/WaterVertexColor not found — shader failed to compile?");
-                    EditorApplication.Exit(2);
-                    return;
-                }
-                wr.sharedMaterial = new Material(waterShader);
-                wr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                wr.receiveShadows = false;
-
-                var outerWater = new GameObject("OuterWater");
-                outerWater.transform.SetParent(root.transform);
-                outerWater.AddComponent<MeshFilter>().sharedMesh = outer.Water;
-                var owr = outerWater.AddComponent<MeshRenderer>();
-                owr.sharedMaterial = new Material(waterShader);
-                owr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                owr.receiveShadows = false;
-
-                // ── Environment ──────────────────────────────────────────────
-                // Values mirror ENV.coastal in ThreeCanvas.jsx. The horizon band
-                // of the sky must equal the fog colour exactly — that identity is
-                // what makes land dissolve into sky with no seam.
-                var fogColor = new Color(0.874f, 0.933f, 0.957f); // 0xdfeef4
-                // The plan view exists to check the outerland's OUTLINE, and at 460
-                // units up everything is past fogEnd and comes back as flat grey.
-                // Fog off for that diagnostic only.
-                RenderSettings.fog = Arg("-view", "iso") != "plan";
-                RenderSettings.fogMode = FogMode.Linear;
-                RenderSettings.fogColor = fogColor;
-                RenderSettings.fogStartDistance = 100f;
-                RenderSettings.fogEndDistance = 430f;
-                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-                // Ambient sits well below the web build's nominal 0.85. three.js
-                // folds a 1/PI into its diffuse BRDF that URP's Lambert does not,
-                // so carrying the number across literally doubles the fill light
-                // and flattens the whole image into pastel.
-                RenderSettings.ambientLight = new Color(0.874f, 0.910f, 0.980f) * 0.42f;
-
-                var lightGo = new GameObject("Sun");
-                lightGo.transform.SetParent(root.transform);
-                var light = lightGo.AddComponent<Light>();
-                light.type = LightType.Directional;
-                light.color = new Color(1f, 0.941f, 0.678f); // 0xfff0ad
-                light.intensity = 1.35f;
-                light.shadows = LightShadows.Soft;
-                // Z negated against the web build's (40,65,40), for the same reason
-                // the mesh negates it: the geometry was mirrored into Unity's
-                // left-handed space, so anything positioned in that space has to be
-                // mirrored with it or the sun comes from the wrong quarter.
-                lightGo.transform.position = new Vector3(40, 65, -40);
-                lightGo.transform.LookAt(Vector3.zero);
+                // Atmosphere, sun and tone mapping all come from WorldBuilder now.
+                // The one harness-only override: the plan view exists to check the
+                // outerland's OUTLINE, and at 460 units up everything is past fogEnd
+                // and comes back as flat grey.
+                var fogColor = WorldBuilder.FogColor;
+                if (Arg("-view", "iso") == "plan") RenderSettings.fog = false;
 
                 // ── Camera ───────────────────────────────────────────────────
                 // Same framing as the web build's isometric preset.
@@ -276,16 +160,6 @@ namespace HabagatEditor
                 if (camData == null) camData = camGo.AddComponent<UniversalAdditionalCameraData>();
                 camData.renderPostProcessing = true;
 
-                var volumeGo = new GameObject("GlobalVolume");
-                volumeGo.transform.SetParent(root.transform);
-                var volume = volumeGo.AddComponent<Volume>();
-                volume.isGlobal = true;
-                var profile = ScriptableObject.CreateInstance<VolumeProfile>();
-                var tonemap = profile.Add<Tonemapping>();
-                tonemap.mode.overrideState = true;
-                tonemap.mode.value = TonemappingMode.ACES;
-                volume.sharedProfile = profile;
-
                 // ── Render ───────────────────────────────────────────────────
                 // Supersample rather than rely on the RenderTexture's antiAliasing
                 // field — URP takes its MSAA setting from the pipeline asset and
@@ -318,8 +192,8 @@ namespace HabagatEditor
                 UnityEngine.Object.DestroyImmediate(rtSmall);
                 UnityEngine.Object.DestroyImmediate(tex);
 
-                Debug.Log($"[SceneShot] {presetName} -> {Path.GetFullPath(outPath)} " +
-                          $"({mesh.vertexCount} verts, {mesh.triangles.Length / 3} tris)");
+                int renderers = root.GetComponentsInChildren<MeshRenderer>().Length;
+                Debug.Log($"[SceneShot] {presetName} -> {Path.GetFullPath(outPath)} ({renderers} renderers)");
             }
             finally
             {
