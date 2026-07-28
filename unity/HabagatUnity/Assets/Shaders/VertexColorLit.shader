@@ -21,6 +21,11 @@ Shader "Habagat/VertexColorLit"
         // fold slightly where the warp is strongest, and a backface hole there
         // punches a window straight through the horizon.
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
+        // Props pack a per-part emissive amount into vertex alpha so that glass can
+        // glow without needing a second material — and therefore a second draw call
+        // — on every building. Terrain and outerland write alpha 1 and must leave
+        // this at 0, or their whole surface gets lifted by its own albedo.
+        _EmissiveFromAlpha ("Emissive From Vertex Alpha", Float) = 0
     }
 
     SubShader
@@ -49,6 +54,7 @@ Shader "Habagat/VertexColorLit"
                 half4 _Tint;
                 half _Wetness;
                 float _Cull;
+                half _EmissiveFromAlpha;
             CBUFFER_END
 
             struct Attributes
@@ -98,6 +104,7 @@ Shader "Habagat/VertexColorLit"
                 half3 ambient = SampleSH(N);
 
                 half3 col = albedo * (diffuse + ambient);
+                col += albedo * IN.color.a * _EmissiveFromAlpha;
                 col = MixFog(col, IN.fogCoord);
                 return half4(col, 1.0h);
             }

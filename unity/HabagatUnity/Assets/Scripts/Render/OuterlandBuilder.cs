@@ -32,19 +32,39 @@ namespace Habagat.Render
 
         private struct BorderPt
         {
-            public float X, Z;    // world position on the sandbox edge
+            public double X, Z;   // world position on the sandbox edge (double: see VxD)
             public float Nx, Nz;  // outward normal
             public int I;         // index into the heightmap
         }
 
         private BorderPt[] _border;
-        private double[] _ringD;
+        // float, not double, and deliberately so. In the web build these are
+        // Float32Array — `ringD` and `outBaseY` — so every value is narrowed on the
+        // store and every later comparison sees the narrowed number. Keeping them as
+        // doubles here is the exact mistake already paid for once in the simulation
+        // port: invisible per-value, but the world dressing tests `d < 7`, `d > 215`,
+        // `d < 18` and `h < 0.6` against them, and a sample that flips one of those
+        // draws a different number of random values. That desynchronises the shared
+        // RNG stream, which is how it was caught: every distant house came out purple
+        // instead of terracotta, because the prototype's colour is drawn from the
+        // same stream after ~9000 samples' worth of drift.
+        private float[] _ringD;
         private int _p, _rings;
-        private double[] _baseY;
+        private float[] _baseY;
         private Vector3[] _landVerts;
 
         public Mesh Land { get; private set; }
         public Mesh Water { get; private set; }
+
+        // Exposed so the world dressing can scatter onto this same ring lattice
+        // rather than inventing its own sampling of the surrounding land. Sharing
+        // the lattice is what guarantees a distant tree stands exactly ON the
+        // terrain it is meant to be growing out of.
+        public int RingCount => _rings;
+        public int PerimeterCount => _p;
+        public float[] RingDistances => _ringD;
+        public float[] BaseY => _baseY;
+        public Vector3[] LandVerts => _landVerts;
 
         private void BuildBorder()
         {
@@ -52,8 +72,8 @@ namespace Habagat.Render
 
             void AddPt(int col, int row, float nx, float nz) => b.Add(new BorderPt
             {
-                X = TerrainMeshBuilder.Vx(col),
-                Z = TerrainMeshBuilder.Vz(row),
+                X = TerrainMeshBuilder.VxD(col),
+                Z = TerrainMeshBuilder.VzD(row),
                 Nx = nx, Nz = nz,
                 I = row * W + col,
             });
@@ -94,7 +114,7 @@ namespace Habagat.Render
         private void BuildRingSpacing(in OuterConfig oc)
         {
             _rings = oc.Rings;
-            _ringD = new double[_rings + 1];
+            _ringD = new float[_rings + 1];
 
             double lo = 1.0001, hi = 2.0;
             for (int it = 0; it < 80; it++)
@@ -105,7 +125,7 @@ namespace Habagat.Render
             }
             double ratio = (lo + hi) / 2;
             double d = 0;
-            for (int j = 0; j <= _rings; j++) { _ringD[j] = d; d += oc.Step0 * Math.Pow(ratio, j); }
+            for (int j = 0; j <= _rings; j++) { _ringD[j] = (float)d; d += oc.Step0 * Math.Pow(ratio, j); }
         }
 
         public void Build(FloodSim sim, in TerrainPalette palette, in OuterConfig oc)
@@ -116,7 +136,7 @@ namespace Habagat.Render
             int n = (_rings + 1) * _p;
             var verts = new Vector3[n];
             var colors = new Color[n];
-            _baseY = new double[n];
+            _baseY = new float[n];
             var elev = sim.Elev;
 
             for (int p = 0; p < _p; p++)
@@ -128,9 +148,13 @@ namespace Habagat.Render
                 // country.
                 double landiness = TerrainColors.Smooth(-0.15, 1.5, e0);
                 // Low-frequency warp of the offset distance → organic outline.
+                // Sampled at the REFERENCE Z, not the Unity one — see
+                // TerrainColors.RefZ. Getting this wrong does not merely shift the
+                // pattern, it produces a different coastline outline entirely.
+                double bzRef = TerrainColors.RefZ(bp.Z);
                 double warp = 1
-                    + (TerrainColors.Fbm(bp.X * 0.007 + 3.3, bp.Z * 0.007 + 7.7) - 0.5) * 0.6
-                    + (TerrainColors.Fbm(bp.X * 0.021 + 19.1, bp.Z * 0.021 + 4.3) - 0.5) * 0.24;
+                    + (TerrainColors.Fbm(bp.X * 0.007 + 3.3, bzRef * 0.007 + 7.7) - 0.5) * 0.6
+                    + (TerrainColors.Fbm(bp.X * 0.021 + 19.1, bzRef * 0.021 + 4.3) - 0.5) * 0.24;
 
                 for (int j = 0; j <= _rings; j++)
                 {
@@ -156,21 +180,23 @@ namespace Habagat.Render
                         far = e0 * 0.45;
                     }
 
+                    // Every noise term below samples the reference frame too.
+                    double wzRef = TerrainColors.RefZ(wz);
                     double h = e0 + (far - e0) * TerrainColors.Smooth(0, 1, t);
                     double nr = TerrainColors.Smooth(0, 0.16, t); // wrinkles start at zero on the seam
-                    h += (TerrainColors.Fbm(wx * oc.Freq, wz * oc.Freq) - 0.5) * oc.Amp * nr;
-                    h += (TerrainColors.Fbm(wx * oc.Freq * 3.1 + 31.7, wz * oc.Freq * 3.1 + 13.3) - 0.5) * oc.Amp * 0.3 * nr;
-                    h += (TerrainColors.Fbm(wx * oc.Freq * 0.33 + 5.1, wz * oc.Freq * 0.33 + 9.3) - 0.5) * oc.Rise * TerrainColors.Smooth(0.04, 0.6, t);
+                    h += (TerrainColors.Fbm(wx * oc.Freq, wzRef * oc.Freq) - 0.5) * oc.Amp * nr;
+                    h += (TerrainColors.Fbm(wx * oc.Freq * 3.1 + 31.7, wzRef * oc.Freq * 3.1 + 13.3) - 0.5) * oc.Amp * 0.3 * nr;
+                    h += (TerrainColors.Fbm(wx * oc.Freq * 0.33 + 5.1, wzRef * oc.Freq * 0.33 + 9.3) - 0.5) * oc.Rise * TerrainColors.Smooth(0.04, 0.6, t);
                     // Extra relief concentrated in the band where land crosses sea
                     // level. Without it the coast tracks the border's own elevation
                     // and runs in long straight lines parallel to the map edge; this
                     // is what turns it into bays, spits and offshore sandbars.
-                    h += (TerrainColors.Fbm(wx * oc.Freq * 1.7 + 61.3, wz * oc.Freq * 1.7 + 45.9) - 0.5)
+                    h += (TerrainColors.Fbm(wx * oc.Freq * 1.7 + 61.3, wzRef * oc.Freq * 1.7 + 45.9) - 0.5)
                          * oc.Amp * 1.5 * TerrainColors.Smooth(0.02, 0.14, t) * (1 - TerrainColors.Smooth(0.34, 0.8, t));
 
                     int k = j * _p + p;
                     verts[k] = new Vector3((float)wx, (float)h, (float)wz);
-                    _baseY[k] = h;
+                    _baseY[k] = (float)h;
 
                     var cc = TerrainColors.ColorFor(h, palette);
                     double tn = TerrainColors.GroundTint(wx, wz);
