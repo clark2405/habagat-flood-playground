@@ -13,6 +13,14 @@ namespace Habagat.Render
         public bool CastShadow = true;
 
         /// <summary>
+        /// Baking flattens every instance into one static mesh, which is why the
+        /// scatter is affordable — but it also destroys per-instance transforms.
+        /// Anything that has to MOVE at runtime must opt out. Boats ride the swell,
+        /// so they do; everything else stands still.
+        /// </summary>
+        public bool Dynamic;
+
+        /// <summary>
         /// Flatten every instance of this kind into a single mesh.
         ///
         /// The web build uses one THREE.InstancedMesh per kind, and the density only
@@ -494,7 +502,7 @@ namespace Habagat.Render
                         }
                         if (!boatBatches.TryGetValue(key, out var bb))
                         {
-                            bb = new PropBatch { Mesh = proto, CastShadow = true };
+                            bb = new PropBatch { Mesh = proto, CastShadow = true, Dynamic = true };
                             boatBatches[key] = bb;
                             batches.Add(bb);
                         }

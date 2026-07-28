@@ -19,43 +19,64 @@ hazards that have already cost time.
 
 ## Next up, in order
 
-### 1. Weather and the animation loop
-Reference: §11 (rain particles) and §15 (the render loop) of `ThreeCanvas.jsx`.
+### 1. Flood the world outside the sandbox  ← next
+Reference: the block at `ThreeCanvas.jsx` ~2303, "The world outside the sandbox,
+reacting to the same weather".
 
-- Rain particles, storm intensity, and the wind-driven slant
-- Ground wetness — the shader already has `_Wetness` and nothing drives it
-- Fog colour and distance lerping toward the weather state. **Note the trap**: the
-  web loop lerps `fog.near`/`far` every frame, which is what defeated an earlier
-  attempt to pin them from the console
-- Swell amplitude rising with the storm
+**This is now visibly needed.** With weather in, a heavy storm fills the play area
+and stops dead at the border, so the flood renders as a hard-edged rectangle of
+water sitting in a bone-dry landscape — the most glaring possible way to advertise
+where the sandbox ends, and exactly what the outerland exists to prevent. The web
+build does not have this problem because its open water welds to the sandbox's own
+water level at ring 0 and relaxes outward to sea level.
 
-**Known blocker:** boats are currently baked into a static combined mesh, so they
-cannot ride the swell. They need to go back to individual transforms —
-`PropBatch.Bake` is the wrong tool for anything that moves. Same applies to
-mangroves and drains once painting is interactive: they are built once at world
-build time and never rebuilt.
+It needs four things that do not exist on the C# side yet:
 
-### 2. Sky and backdrop
+- `bgDepth` — mean rainwater depth over the play area's land cells, eased at 0.08,
+  which is the level the outside world floods to
+- `outerBorderSurf[p]` — per border point, taken from the *relaxed* water surface so
+  the two sheets agree exactly. Only low-lying shoreline cells (`elev <= SEA_LEVEL +
+  0.8`) may raise it, or rain pooling on a hillside drags the horizon's water up
+- `waterRelax[j]` — per-ring falloff from the border level back to sea level
+- `outSmoothY` — smoothed ring heights, so flooded land meets the open sea flush
+  instead of standing above it
+
+`WaterMeshBuilder` computes the relaxed surface internally and would need to expose
+it. Do not half-build this: the four arrays are coupled, and a partial version will
+look worse than the hard edge.
+
+### 2. Weather — done, with one gap
+Rain particles, storm slant, ground wetness, water smoothness, fog and lightning
+all landed. Boats now ride the swell.
+
+Still missing: **per-preset environment**. `WorldBuilder` and `Weather` hardcode
+`ENV.coastal`, so fog colour, sun tint and the clear-sky palette are identical on
+all four maps. Storm values are shared in the reference, so only the clear-weather
+side needs the table.
+
+Also: mangroves and drains are built once at world-build time and never rebuilt,
+which blocks interactive painting. Unlike the boats they do not move, so they can
+stay baked — they just need a rebuild trigger.
+
+### 3. Sky and backdrop
 Reference: §4 (gradient sky dome) and §7 (distant silhouettes).
 
 Right now the camera just clears to the fog colour. The dome's horizon band must be
 painted the *exact* fog colour — that identity is what makes land dissolve into sky
 with no seam.
 
-### 3. Interaction
+### 4. Interaction
 Reference: §13 (brush cursor ring) and `handlePaint` in `FloodPlayground.jsx`.
 
 Raycast onto the terrain, convert the hit to a grid cell, drive `FloodSim.Paint`.
 The tools already exist in C# and are fingerprint-verified; this is the input
 plumbing and the cursor ring. Painting must trigger a props rebuild.
 
-### 4. UI
+### 5. UI
 The one piece that is genuinely a rewrite rather than a port: preset switcher,
 tool palette, stats readout, storm button, rain slider. React does not translate.
 
-### 5. Loose ends
-- **Per-preset environment.** `WorldBuilder` hardcodes `ENV.coastal` — fog colour,
-  sun tint and ambient are the same on every map. The web build varies them.
+### 6. Loose ends
 - **Ambient occlusion.** The web build's GTAO pass is a large part of why props sit
   in the ground rather than float on it; Unity has no equivalent yet. `thickness`
   mattering more than `radius` is recorded in `CLAUDE.md`.

@@ -96,7 +96,6 @@ namespace HabagatEditor
                 // The one harness-only override: the plan view exists to check the
                 // outerland's OUTLINE, and at 460 units up everything is past fogEnd
                 // and comes back as flat grey.
-                var fogColor = WorldBuilder.FogColor;
                 if (Arg("-view", "iso") == "plan") RenderSettings.fog = false;
 
                 // ── Camera ───────────────────────────────────────────────────
@@ -148,7 +147,10 @@ namespace HabagatEditor
                 cam.nearClipPlane = 0.5f;
                 cam.farClipPlane = 1000f;
                 cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = fogColor;
+                // Track the fog the weather actually settled on, not the clear-sky
+                // constant — otherwise a storm renders dark fog against a bright sky
+                // and the horizon shows as a hard line.
+                cam.backgroundColor = RenderSettings.fogColor;
                 cam.allowHDR = true;
 
                 // ── Post-processing ──────────────────────────────────────────
