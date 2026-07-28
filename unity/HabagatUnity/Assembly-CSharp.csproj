@@ -63,11 +63,13 @@
   <ItemGroup>
     <Compile Include="Assets\Scripts\Render\WorldDress.cs" />
     <Compile Include="Assets\Scripts\Render\TerrainMeshBuilder.cs" />
+    <Compile Include="Assets\Scripts\Render\Weather.cs" />
     <Compile Include="Assets\Scripts\Sim\JsMath.cs" />
     <Compile Include="Assets\Scripts\Render\PropBuilder.cs" />
     <Compile Include="Assets\Scripts\Sim\TerrainPresets.cs" />
     <Compile Include="Assets\Scripts\Render\WaterMeshBuilder.cs" />
     <Compile Include="Assets\Scripts\Sim\TerrainColors.cs" />
+    <Compile Include="Assets\Scripts\Render\RainSystem.cs" />
     <Compile Include="Assets\Scripts\Render\WorldBuilder.cs" />
     <Compile Include="Assets\Scripts\Render\PropLibrary.cs" />
     <Compile Include="Assets\Scripts\Sim\Barangay.cs" />
@@ -80,6 +82,7 @@
     <Compile Include="Assets\Scripts\OrbitCamera.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\Shaders\RainLine.shader" />
     <None Include="Assets\Shaders\WaterVertexColor.shader" />
     <None Include="Assets\Shaders\VertexColorLit.shader" />
   </ItemGroup>

@@ -27,6 +27,17 @@ namespace Habagat.Render
         public OuterlandBuilder Outer { get; private set; }
         public Light Sun { get; private set; }
 
+        // Exposed so the weather can drive them: wetness darkens the ground and
+        // roughens the water, and both sheets must soak through together or the
+        // border between sandbox and surrounding world reappears in the rain.
+        public Material TerrainMat { get; private set; }
+        public Material OuterMat { get; private set; }
+        public Material WaterMat { get; private set; }
+        public Material OuterWaterMat { get; private set; }
+
+        /// <summary>Boats, kept as individual transforms so they can ride the swell.</summary>
+        public readonly System.Collections.Generic.List<Transform> Boats = new();
+
         private Material _propMat;
 
         public bool Build(FloodSim sim, PresetType type, bool withProps, Transform parent = null)
@@ -57,7 +68,8 @@ namespace Habagat.Render
 
             // ── Terrain ──────────────────────────────────────────────────────
             var terrainMesh = new TerrainMeshBuilder().Build(sim.Elev, palette);
-            Child("Terrain", terrainMesh, new Material(shader), true, true);
+            TerrainMat = new Material(shader);
+            Child("Terrain", terrainMesh, TerrainMat, true, true);
 
             // ── The world outside the sandbox ────────────────────────────────
             // Deliberately NOT receiving shadows: the shadow frustum only covers the
@@ -66,9 +78,9 @@ namespace Habagat.Render
             // remove.
             Outer = new OuterlandBuilder();
             Outer.Build(sim, palette, OuterConfig.For(type));
-            var outerMat = new Material(shader);
-            outerMat.SetFloat("_Cull", 0f); // double-sided, like the web build
-            Child("Outerland", Outer.Land, outerMat, false, false);
+            OuterMat = new Material(shader);
+            OuterMat.SetFloat("_Cull", 0f); // double-sided, like the web build
+            Child("Outerland", Outer.Land, OuterMat, false, false);
 
             // ── Props ────────────────────────────────────────────────────────
             // Built against the DRY terrain: props do not react to the flood, so
@@ -84,14 +96,29 @@ namespace Habagat.Render
                 batches.AddRange(PropScatter.BuildSimProps(sim));
                 batches.AddRange(WorldDress.Build(Outer, type));
                 foreach (var b in batches)
-                    Child("Props_" + b.Mesh.name, b.Bake(b.Mesh.name + "_baked"), _propMat, b.CastShadow, false);
+                {
+                    if (!b.Dynamic)
+                    {
+                        Child("Props_" + b.Mesh.name, b.Bake(b.Mesh.name + "_baked"), _propMat, b.CastShadow, false);
+                        continue;
+                    }
+                    // One object per instance. Only a handful of these exist, so the
+                    // draw calls are affordable and they buy per-object animation.
+                    foreach (var m in b.Instances)
+                    {
+                        var go = Child(b.Mesh.name, b.Mesh, _propMat, b.CastShadow, false);
+                        go.transform.SetPositionAndRotation(m.GetColumn(3), m.rotation);
+                        Boats.Add(go.transform);
+                    }
+                }
             }
 
             // ── Water ────────────────────────────────────────────────────────
             Water = new WaterMeshBuilder();
-            var waterMat = new Material(waterShader);
-            Child("Water", Water.Build(sim, palette), waterMat, false, false);
-            Child("OuterWater", Outer.Water, new Material(waterShader), false, false);
+            WaterMat = new Material(waterShader);
+            OuterWaterMat = new Material(waterShader);
+            Child("Water", Water.Build(sim, palette), WaterMat, false, false);
+            Child("OuterWater", Outer.Water, OuterWaterMat, false, false);
 
             // ── Atmosphere ───────────────────────────────────────────────────
             RenderSettings.fog = true;

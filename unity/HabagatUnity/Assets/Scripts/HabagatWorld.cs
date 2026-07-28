@@ -35,6 +35,7 @@ namespace Habagat
 
         public FloodSim Sim { get; private set; }
         public WorldBuilder World { get; private set; }
+        public Weather Weather { get; private set; }
 
         private double _time;
 
@@ -64,7 +65,8 @@ namespace Habagat
             Sim = FloodSim.FromPreset(preset, SeedFor(preset));
             beforeBuild?.Invoke(Sim);
             World = new WorldBuilder();
-            if (!World.Build(Sim, preset, buildProps, transform)) enabled = false;
+            if (!World.Build(Sim, preset, buildProps, transform)) { enabled = false; return; }
+            Weather ??= new Weather(transform);
         }
 
         private void Update()
@@ -79,14 +81,22 @@ namespace Habagat
             // flood should still have moving water, or the whole scene reads as a
             // screenshot.
             _time += Time.deltaTime;
-            World.RefreshWater(Sim, preset, _time);
+            Weather.Tick(World, rain, storm, Time.deltaTime);
+            World.RefreshWater(Sim, preset, _time, Weather.SwellAmp);
+            Weather.RideSwell(World, _time);
         }
 
         /// <summary>Advance the simulation without rendering — used by the harness.</summary>
         public void Advance(int ticks, float rainAmount, bool stormy)
         {
             for (int i = 0; i < ticks; i++) Sim.Step(rainAmount, stormy);
-            World.RefreshWater(Sim, preset, _time);
+            // Weather eases rather than snapping, so a still frame has to be given
+            // enough ticks to actually get wet — 400 lands within a per-mille of the
+            // target at the 0.025 rate. Without this a `-storm 1` screenshot shows
+            // storm water under a bone-dry landscape.
+            for (int i = 0; i < 400; i++) Weather.Tick(World, rainAmount, stormy, 1f / 60f);
+            World.RefreshWater(Sim, preset, _time, Weather.SwellAmp);
+            Weather.RideSwell(World, _time);
         }
 
         private void OnDestroy() => World?.Destroy();
