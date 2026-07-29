@@ -20,7 +20,10 @@ Shader "Habagat/SkyDome"
             Tags { "LightMode" = "UniversalForward" }
 
             Cull Front
-            ZWrite Off
+            // Depth IS written, matching three.js's MeshBasicMaterial. The reference
+            // relies on it: the far backdrop layers are placed past the dome radius
+            // and are meant to be occluded by it.
+            ZWrite On
             ZTest LEqual
 
             HLSLPROGRAM

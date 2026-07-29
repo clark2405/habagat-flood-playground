@@ -74,6 +74,7 @@
     <Compile Include="Assets\Scripts\Render\PropLibrary.cs" />
     <Compile Include="Assets\Scripts\Sim\Barangay.cs" />
     <Compile Include="Assets\Scripts\Render\PropScatter.cs" />
+    <Compile Include="Assets\Scripts\Render\Backdrop.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\Scripts\Render\OuterlandBuilder.cs" />
     <Compile Include="Assets\Scripts\HabagatWorld.cs" />

@@ -17,37 +17,29 @@ hazards that have already cost time.
 - Weather: rain, ground wetness, storm sky, lightning, boats riding the swell
 - The world outside the sandbox floods with the play area, so a storm no longer
   renders as a rectangle of water in a dry landscape
-- Gradient sky dome, and per-preset atmosphere for all four maps
+- Gradient sky dome, per-preset atmosphere, and distant backdrop silhouettes
 - One construction path: `WorldBuilder` is used by both the play scene and the
   screenshot harness, so a screenshot is evidence about what actually runs
 
 ## Next up, in order
 
-### 1. Distant backdrop silhouettes  ← next
-Reference: §7 of `ThreeCanvas.jsx` (~390-450).
-
-The sky dome and per-preset atmosphere are done; the silhouettes are not. Each
-preset names a `backdrop` in its ENV entry: mountains for coastal, river and island,
-a city skyline for urban, with per-preset count, radius, height range and spread.
-`coastal` sets `behindOnly`, so its ring only fills the landward side.
-
-They are hazed toward the sky's horizon colour by a per-layer `haze` factor every
-frame, which is what sits them in the atmosphere instead of pasting them on it.
-
-### 2. Interaction
+### 1. Interaction  ← next
 Reference: §13 (brush cursor ring) and `handlePaint` in `FloodPlayground.jsx`.
 
 Raycast onto the terrain, convert the hit to a grid cell, drive `FloodSim.Paint`.
 The tools already exist in C# and are fingerprint-verified; this is the input
 plumbing and the cursor ring. Painting must trigger a props rebuild.
 
-### 3. UI
+### 2. UI
 The one piece that is genuinely a rewrite rather than a port: preset switcher,
 tool palette, stats readout, storm button, rain slider. React does not translate.
 
-### 4. Loose ends
+### 3. Loose ends
 - **The sun disc** (a glowing sphere, hidden on overcast presets via `EnvConfig.Sun`)
   is not built yet. The flag is already carried across.
+- **Backdrop silhouettes are smooth-shaded**, where the reference sets
+  `flatShading: true`. At 34-78% haze the difference is barely visible, which is why
+  it was left; `Prim.Cone` would need a flat-normal variant to match exactly.
 - **Mangroves and drains** are built once at world-build time and never rebuilt,
   which blocks interactive painting. They do not move, so they can stay baked — they
   just need a rebuild trigger.

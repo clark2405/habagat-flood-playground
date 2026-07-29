@@ -25,6 +25,9 @@ namespace Habagat.Render
 
         public SkyDome Sky { get; private set; }
 
+        /// <summary>Backdrop layers, re-hazed toward the live sky colour each frame.</summary>
+        public System.Collections.Generic.List<Backdrop.LayerMat> BackdropLayers { get; private set; }
+
         public GameObject Root { get; private set; }
         public WaterMeshBuilder Water { get; private set; }
         public OuterlandBuilder Outer { get; private set; }
@@ -136,6 +139,11 @@ namespace Habagat.Render
 
             Sky = new SkyDome(Root.transform);
             Sky.Paint(Hex(Env.Fog), Hex(Env.Mid), Hex(Env.Zenith));
+
+            // Silhouettes on the horizon. Flat-lit through the same ground shader,
+            // with white vertex colours so the material tint carries the haze.
+            var bdMat = new Material(shader);
+            BackdropLayers = Backdrop.Build(type, Root.transform, bdMat);
 
             var sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(Root.transform, false);
