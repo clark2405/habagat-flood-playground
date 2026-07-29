@@ -45,6 +45,10 @@ namespace Habagat.Render
         public readonly System.Collections.Generic.List<Transform> Boats = new();
 
         private Material _propMat;
+        private PresetType _type;
+        private MeshFilter _terrainFilter;
+        private MeshCollider _terrainCollider;
+        private readonly System.Collections.Generic.List<GameObject> _simProps = new();
 
         public bool Build(FloodSim sim, PresetType type, bool withProps, Transform parent = null)
         {
@@ -58,6 +62,7 @@ namespace Habagat.Render
 
             var palette = TerrainPalette.For(type);
             Env = EnvConfig.For(type);
+            _type = type;
             Root = new GameObject("HabagatWorld");
             if (parent != null) Root.transform.SetParent(parent, false);
 
@@ -76,7 +81,13 @@ namespace Habagat.Render
             // ── Terrain ──────────────────────────────────────────────────────
             var terrainMesh = new TerrainMeshBuilder().Build(sim.Elev, palette);
             TerrainMat = new Material(shader);
-            Child("Terrain", terrainMesh, TerrainMat, true, true);
+            var terrainGo = Child("Terrain", terrainMesh, TerrainMat, true, true);
+            _terrainFilter = terrainGo.GetComponent<MeshFilter>();
+            // The brush raycasts against this. Only the terrain gets a collider —
+            // the outerland is scenery and must never be paintable, and giving props
+            // colliders would let the ray stop on a palm frond.
+            _terrainCollider = terrainGo.AddComponent<MeshCollider>();
+            _terrainCollider.sharedMesh = terrainMesh;
 
             // ── The world outside the sandbox ────────────────────────────────
             // Deliberately NOT receiving shadows: the shadow frustum only covers the
@@ -100,7 +111,6 @@ namespace Habagat.Render
                 _propMat.SetFloat("_EmissiveFromAlpha", 1f);
 
                 var batches = PropScatter.Build(sim, type);
-                batches.AddRange(PropScatter.BuildSimProps(sim));
                 batches.AddRange(WorldDress.Build(Outer, type));
                 foreach (var b in batches)
                 {
@@ -119,6 +129,8 @@ namespace Habagat.Render
                     }
                 }
             }
+
+            if (withProps) RebuildSimProps(sim);
 
             // ── Water ────────────────────────────────────────────────────────
             Water = new WaterMeshBuilder();
@@ -191,6 +203,43 @@ namespace Habagat.Render
         public void RefreshOuterWater(FloodSim sim, PresetType type, double bgDepth,
                                       double time, double swellAmp) =>
             Outer.UpdateWater(sim, Water.Surface, TerrainPalette.For(type), bgDepth, time, swellAmp);
+
+        /// <summary>
+        /// Re-mesh the terrain after the brush has moved it. The collider has to be
+        /// reassigned too, or the ray keeps hitting the shape the ground used to be
+        /// and the cursor floats above or sinks into the hole just dug.
+        /// </summary>
+        public void RebuildTerrain(FloodSim sim)
+        {
+            var mesh = new TerrainMeshBuilder().Build(sim.Elev, TerrainPalette.For(_type));
+            _terrainFilter.sharedMesh = mesh;
+            _terrainCollider.sharedMesh = mesh;
+        }
+
+        /// <summary>
+        /// Rebuild the props that come from painted state. These are static once
+        /// placed, so unlike the boats they can stay baked — they just need
+        /// regenerating whenever the player plants or clears something.
+        /// </summary>
+        public void RebuildSimProps(FloodSim sim)
+        {
+            foreach (var go in _simProps)
+                if (go != null) { if (Application.isPlaying) Object.Destroy(go); else Object.DestroyImmediate(go); }
+            _simProps.Clear();
+            if (_propMat == null) return;
+
+            foreach (var b in PropScatter.BuildSimProps(sim))
+            {
+                var go = new GameObject("Props_" + b.Mesh.name);
+                go.transform.SetParent(Root.transform, false);
+                go.AddComponent<MeshFilter>().sharedMesh = b.Bake(b.Mesh.name + "_baked");
+                var r = go.AddComponent<MeshRenderer>();
+                r.sharedMaterial = _propMat;
+                r.shadowCastingMode = b.CastShadow ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                r.receiveShadows = false;
+                _simProps.Add(go);
+            }
+        }
 
         public void Destroy()
         {

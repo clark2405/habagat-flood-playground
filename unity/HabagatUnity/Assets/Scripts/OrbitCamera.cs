@@ -27,6 +27,13 @@ namespace Habagat
         public float yaw = 45f;
         public float pitch = 48f;
 
+        /// <summary>
+        /// Cleared while a paint tool is active. The camera and the brush both want
+        /// the left drag, so exactly one of them may have it — which is why the
+        /// reference makes "Pan &amp; Orbit" a tool rather than a mode toggle.
+        /// </summary>
+        [System.NonSerialized] public bool orbitEnabled = true;
+
         public float orbitSpeed = 0.25f;
         public float panSpeed = 0.06f;
         public float zoomSpeed = 8f;
@@ -36,7 +43,7 @@ namespace Habagat
         private void Update()
         {
             // Left drag orbits, right/middle drag pans, wheel zooms.
-            if (Input.GetMouseButton(0))
+            if (orbitEnabled && Input.GetMouseButton(0))
             {
                 yaw += Input.GetAxis("Mouse X") * orbitSpeed * 12f;
                 pitch -= Input.GetAxis("Mouse Y") * orbitSpeed * 12f;
