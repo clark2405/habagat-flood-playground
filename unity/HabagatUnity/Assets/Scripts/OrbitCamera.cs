@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Habagat
 {
@@ -42,23 +43,30 @@ namespace Habagat
 
         private void Update()
         {
+            var mouse = Mouse.current;
+            if (mouse == null) return;
+
+            // Raw pixel delta, scaled to roughly what the old Input.GetAxis("Mouse X")
+            // used to return, so the tuned speeds below still mean what they say.
+            Vector2 d = mouse.delta.ReadValue() * 0.1f;
+
             // Left drag orbits, right/middle drag pans, wheel zooms.
-            if (orbitEnabled && Input.GetMouseButton(0))
+            if (orbitEnabled && mouse.leftButton.isPressed)
             {
-                yaw += Input.GetAxis("Mouse X") * orbitSpeed * 12f;
-                pitch -= Input.GetAxis("Mouse Y") * orbitSpeed * 12f;
+                yaw += d.x * orbitSpeed * 12f;
+                pitch -= d.y * orbitSpeed * 12f;
             }
-            else if (Input.GetMouseButton(1) || Input.GetMouseButton(2))
+            else if (mouse.rightButton.isPressed || mouse.middleButton.isPressed)
             {
                 // Pan across the ground plane, not the screen plane, so dragging
                 // tracks the terrain under the cursor rather than sliding the world.
                 var right = transform.right;
                 var fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
-                target -= (right * Input.GetAxis("Mouse X") + fwd * Input.GetAxis("Mouse Y"))
-                          * panSpeed * distance;
+                target -= (right * d.x + fwd * d.y) * panSpeed * distance;
             }
 
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            // One wheel notch is ~120 here, against ~0.1 from the old axis.
+            float scroll = mouse.scroll.ReadValue().y / 1200f;
             if (Mathf.Abs(scroll) > 0.0001f) distance -= scroll * zoomSpeed * distance * 0.1f;
 
             Apply();

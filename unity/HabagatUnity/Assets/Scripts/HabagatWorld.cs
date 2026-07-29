@@ -37,6 +37,15 @@ namespace Habagat
         public WorldBuilder World { get; private set; }
         public Weather Weather { get; private set; }
 
+        /// <summary>
+        /// Latest simulation stats. Step returns them, so they are cached here rather
+        /// than recomputed — and they deliberately persist while paused, or the
+        /// readout would blank out the moment you stopped to look at it.
+        /// </summary>
+        public SimStats Stats { get; private set; }
+
+        private int[] _houseCells;
+
         private double _time;
 
         private static int SeedFor(PresetType t) => t switch
@@ -64,6 +73,12 @@ namespace Habagat
             World?.Destroy();
             Sim = FloodSim.FromPreset(preset, SeedFor(preset));
             beforeBuild?.Invoke(Sim);
+            // Which cells hold a home, so the sim can report how many are underwater.
+            var houses = Barangay.For(preset);
+            _houseCells = new int[houses.Length];
+            for (int i = 0; i < houses.Length; i++)
+                _houseCells[i] = houses[i].Y * FloodSim.W + houses[i].X;
+
             World = new WorldBuilder();
             if (!World.Build(Sim, preset, buildProps, transform)) { enabled = false; return; }
             Weather ??= new Weather(transform);
@@ -75,7 +90,7 @@ namespace Habagat
 
             if (running)
                 for (int i = 0; i < stepsPerFrame; i++)
-                    Sim.Step(rain, storm);
+                    Stats = Sim.Step(rain, storm, _houseCells);
 
             // The surface animates whether or not the sim is running — a paused
             // flood should still have moving water, or the whole scene reads as a
@@ -90,7 +105,7 @@ namespace Habagat
         /// <summary>Advance the simulation without rendering — used by the harness.</summary>
         public void Advance(int ticks, float rainAmount, bool stormy)
         {
-            for (int i = 0; i < ticks; i++) Sim.Step(rainAmount, stormy);
+            for (int i = 0; i < ticks; i++) Stats = Sim.Step(rainAmount, stormy, _houseCells);
             // Weather eases rather than snapping, so a still frame has to be given
             // enough ticks to actually get wet — 400 lands within a per-mille of the
             // target at the 0.025 rate. Without this a `-storm 1` screenshot shows

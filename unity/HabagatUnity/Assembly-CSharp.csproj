@@ -82,6 +82,7 @@
     <Compile Include="Assets\Scripts\Render\SkyDome.cs" />
     <Compile Include="Assets\Scripts\Sim\FloodSim.cs" />
     <Compile Include="Assets\Scripts\Render\Prim.cs" />
+    <Compile Include="Assets\Scripts\HabagatUI.cs" />
     <Compile Include="Assets\Scripts\OrbitCamera.cs" />
     <Compile Include="Assets\Scripts\Sim\EnvConfig.cs" />
   </ItemGroup>

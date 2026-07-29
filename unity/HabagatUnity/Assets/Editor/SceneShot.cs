@@ -153,6 +153,26 @@ namespace HabagatEditor
                 cam.backgroundColor = RenderSettings.fogColor;
                 cam.allowHDR = true;
 
+                // ── UI ───────────────────────────────────────────────────────
+                // A ScreenSpaceOverlay canvas never appears in a RenderTexture, so
+                // for the screenshot it is retargeted to render through this camera.
+                // The layout is identical either way — only the compositing differs.
+                if (Arg("-ui", "0") == "1")
+                {
+                    worldGo.AddComponent<PaintController>().cam = cam;
+                    var ui = worldGo.AddComponent<HabagatUI>();
+                    ui.Build();
+                    ui.Canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                    ui.Canvas.worldCamera = cam;
+                    ui.Canvas.planeDistance = 1f;
+                    // Called directly rather than via SendMessage: that would invoke
+                    // Update on every component here, including PaintController, whose
+                    // Awake never runs outside Play mode.
+                    Canvas.ForceUpdateCanvases();
+                    ui.Refresh();
+                    Canvas.ForceUpdateCanvases();
+                }
+
                 // ── Post-processing ──────────────────────────────────────────
                 // ACES filmic tone mapping is not a nicety here: the web build
                 // renders through it, so every colour in the ramp was chosen
