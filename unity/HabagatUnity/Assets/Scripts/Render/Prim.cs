@@ -138,6 +138,42 @@ namespace Habagat.Render
         /// <summary>THREE.ConeGeometry(r, h, seg) — a cylinder with no top.</summary>
         public static MeshData Cone(float r, float h, int seg) => Cylinder(0f, r, h, seg);
 
+        // ── Sphere ───────────────────────────────────────────────────────────
+        /// <summary>
+        /// THREE.SphereGeometry(radius, widthSegments, heightSegments). Used for the
+        /// sky dome and the sun disc — the only round things in the scene.
+        /// </summary>
+        public static MeshData Sphere(float radius, int widthSeg, int heightSeg)
+        {
+            int vw = widthSeg + 1, vh = heightSeg + 1;
+            var v = new Vector3[vw * vh];
+            var n = new Vector3[vw * vh];
+            for (int y = 0; y < vh; y++)
+            {
+                float phi = y / (float)heightSeg * Mathf.PI;
+                for (int x = 0; x < vw; x++)
+                {
+                    float theta = x / (float)widthSeg * Mathf.PI * 2f;
+                    var p = new Vector3(
+                        -radius * Mathf.Sin(phi) * Mathf.Cos(theta),
+                         radius * Mathf.Cos(phi),
+                         radius * Mathf.Sin(phi) * Mathf.Sin(theta));
+                    v[y * vw + x] = p;
+                    n[y * vw + x] = p.normalized;
+                }
+            }
+
+            var t = new System.Collections.Generic.List<int>(widthSeg * heightSeg * 6);
+            for (int y = 0; y < heightSeg; y++)
+                for (int x = 0; x < widthSeg; x++)
+                {
+                    int a = y * vw + x, b = a + 1, c = a + vw, d = c + 1;
+                    if (y != 0) { t.Add(a); t.Add(c); t.Add(b); }
+                    if (y != heightSeg - 1) { t.Add(b); t.Add(c); t.Add(d); }
+                }
+            return new MeshData { Verts = v, Normals = n, Tris = t.ToArray() };
+        }
+
         // ── Plane ────────────────────────────────────────────────────────────
         /// <summary>THREE.PlaneGeometry — in the XY plane, facing +Z.</summary>
         public static MeshData Plane(float w, float h)

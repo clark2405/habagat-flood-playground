@@ -13,14 +13,17 @@ namespace Habagat.Render
     /// press Play on. Both the runtime component and the harness now call this, so a
     /// screenshot is a statement about the real scene.
     ///
-    /// Environment values mirror ENV.coastal in ThreeCanvas.jsx. The web build has a
-    /// palette per preset; carrying the rest across is still on the list.
+    /// Atmosphere comes from <see cref="EnvConfig"/>, one entry per preset.
     /// </summary>
     public class WorldBuilder
     {
-        /// <summary>The horizon band of the sky must equal the fog colour exactly —
-        /// that identity is what makes land dissolve into sky with no seam.</summary>
-        public static readonly Color FogColor = new Color(0.874f, 0.933f, 0.957f); // 0xdfeef4
+        public static Color Hex(int h) => new Color(
+            ((h >> 16) & 0xff) / 255f, ((h >> 8) & 0xff) / 255f, (h & 0xff) / 255f);
+
+        /// <summary>The preset this world was built for, and its clear-weather sky.</summary>
+        public EnvConfig Env { get; private set; }
+
+        public SkyDome Sky { get; private set; }
 
         public GameObject Root { get; private set; }
         public WaterMeshBuilder Water { get; private set; }
@@ -51,6 +54,7 @@ namespace Habagat.Render
             }
 
             var palette = TerrainPalette.For(type);
+            Env = EnvConfig.For(type);
             Root = new GameObject("HabagatWorld");
             if (parent != null) Root.transform.SetParent(parent, false);
 
@@ -123,21 +127,22 @@ namespace Habagat.Render
             // ── Atmosphere ───────────────────────────────────────────────────
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = FogColor;
-            RenderSettings.fogStartDistance = 100f;
-            RenderSettings.fogEndDistance = 430f;
+            RenderSettings.fogColor = Hex(Env.Fog);
+            RenderSettings.fogStartDistance = Env.FogNear;
+            RenderSettings.fogEndDistance = Env.FogFar;
             RenderSettings.ambientMode = AmbientMode.Flat;
-            // Well below the web build's nominal 0.85: three.js folds a 1/PI into its
-            // diffuse BRDF that URP's Lambert does not, so carrying the number across
-            // literally doubles the fill light and flattens everything into pastel.
-            RenderSettings.ambientLight = new Color(0.874f, 0.910f, 0.980f) * 0.42f;
+            // EnvConfig already scales the reference's intensities for URP's Lambert.
+            RenderSettings.ambientLight = Hex(Env.AmbientColor) * Env.AmbientIntensity;
+
+            Sky = new SkyDome(Root.transform);
+            Sky.Paint(Hex(Env.Fog), Hex(Env.Mid), Hex(Env.Zenith));
 
             var sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(Root.transform, false);
             Sun = sunGo.AddComponent<Light>();
             Sun.type = LightType.Directional;
-            Sun.color = new Color(1f, 0.941f, 0.678f); // 0xfff0ad
-            Sun.intensity = 1.35f;
+            Sun.color = Hex(Env.DirColor);
+            Sun.intensity = Env.DirIntensity;
             Sun.shadows = LightShadows.Soft;
             // Z negated against the web build's (40,65,40) for the same reason the
             // mesh negates it: the scene was mirrored into left-handed space, so

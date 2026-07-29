@@ -14,13 +14,11 @@ namespace Habagat.Render
     /// </summary>
     public class Weather
     {
-        // Storm is a shared dark override layered over the clear-weather palette.
-        private static readonly Color StormFog = Hex(0x3d4a58);
-        private const float StormFogNear = 30f, StormFogFar = 300f;
-        private const float ClearFogNear = 100f, ClearFogFar = 430f;
+        private static Color Hex(int h) => WorldBuilder.Hex(h);
 
-        private static Color Hex(int h) => new Color(
-            ((h >> 16) & 0xff) / 255f, ((h >> 8) & 0xff) / 255f, (h & 0xff) / 255f);
+        // Live sky colours, eased toward the current weather every frame.
+        private Color _skyHorizon, _skyMid, _skyZenith;
+        private bool _skyInit;
 
         /// <summary>0 = bone dry, 1 = soaked. Eased, never snapped.</summary>
         public float Wetness { get; private set; }
@@ -36,7 +34,7 @@ namespace Habagat.Render
         public double BgDepth { get; private set; }
 
         private readonly RainSystem _rain;
-        private float _sunIntensity = 1.35f;
+        private float _sunIntensity = 1.55f;
 
         public Weather(Transform parent) => _rain = new RainSystem(parent);
 
@@ -72,20 +70,34 @@ namespace Habagat.Render
             world.WaterMat.SetFloat("_Smoothness", smooth);
             world.OuterWaterMat.SetFloat("_Smoothness", smooth);
 
-            // Atmosphere. The fog colour and the horizon band track each other exactly,
-            // so however the weather moves, land and sky still meet in one colour.
-            RenderSettings.fogColor = Color.Lerp(RenderSettings.fogColor,
-                storm ? StormFog : WorldBuilder.FogColor, 0.05f);
+            // Atmosphere. Storm is a shared dark override layered over whichever
+            // clear-weather palette this preset uses.
+            var env = world.Env;
+            if (!_skyInit)
+            {
+                _skyInit = true;
+                _skyHorizon = Hex(env.Fog); _skyMid = Hex(env.Mid); _skyZenith = Hex(env.Zenith);
+            }
+            _skyHorizon = Color.Lerp(_skyHorizon, Hex(storm ? EnvConfig.StormFog : env.Fog), 0.05f);
+            _skyMid = Color.Lerp(_skyMid, Hex(storm ? EnvConfig.StormMid : env.Mid), 0.05f);
+            _skyZenith = Color.Lerp(_skyZenith, Hex(storm ? EnvConfig.StormZenith : env.Zenith), 0.05f);
+            world.Sky.Paint(_skyHorizon, _skyMid, _skyZenith);
+
+            // The fog colour IS the sky's horizon band, not merely close to it. Copy
+            // rather than lerp separately, or the two drift apart under fast weather
+            // changes and a hard horizon line appears where the terrain fades out.
+            RenderSettings.fogColor = _skyHorizon;
             RenderSettings.fogStartDistance = Mathf.Lerp(RenderSettings.fogStartDistance,
-                storm ? StormFogNear : ClearFogNear, 0.05f);
+                storm ? EnvConfig.StormFogNear : env.FogNear, 0.05f);
             RenderSettings.fogEndDistance = Mathf.Lerp(RenderSettings.fogEndDistance,
-                storm ? StormFogFar : ClearFogFar, 0.05f);
+                storm ? EnvConfig.StormFogFar : env.FogFar, 0.05f);
 
             // Sheet lightning. A flash is a jump, not a lerp — that asymmetry between
             // the instant spike and the slow decay is what makes it read as lightning
             // rather than as a flicker.
             if (storm && Random.value < 0.018f) _sunIntensity = 3.5f;
-            else _sunIntensity = Mathf.Lerp(_sunIntensity, storm ? 1.05f : 1.35f, 0.1f);
+            else _sunIntensity = Mathf.Lerp(_sunIntensity,
+                storm ? EnvConfig.StormDirIntensity : env.DirIntensity, 0.1f);
             world.Sun.intensity = _sunIntensity;
 
             _rain.Update(rain, storm);

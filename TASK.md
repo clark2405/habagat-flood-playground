@@ -17,17 +17,22 @@ hazards that have already cost time.
 - Weather: rain, ground wetness, storm sky, lightning, boats riding the swell
 - The world outside the sandbox floods with the play area, so a storm no longer
   renders as a rectangle of water in a dry landscape
+- Gradient sky dome, and per-preset atmosphere for all four maps
 - One construction path: `WorldBuilder` is used by both the play scene and the
   screenshot harness, so a screenshot is evidence about what actually runs
 
 ## Next up, in order
 
-### 1. Sky and backdrop  ← next
-Reference: §4 (gradient sky dome) and §7 (distant silhouettes).
+### 1. Distant backdrop silhouettes  ← next
+Reference: §7 of `ThreeCanvas.jsx` (~390-450).
 
-Right now the camera just clears to the fog colour. The dome's horizon band must be
-painted the *exact* fog colour — that identity is what makes land dissolve into sky
-with no seam.
+The sky dome and per-preset atmosphere are done; the silhouettes are not. Each
+preset names a `backdrop` in its ENV entry: mountains for coastal, river and island,
+a city skyline for urban, with per-preset count, radius, height range and spread.
+`coastal` sets `behindOnly`, so its ring only fills the landward side.
+
+They are hazed toward the sky's horizon colour by a per-layer `haze` factor every
+frame, which is what sits them in the atmosphere instead of pasting them on it.
 
 ### 2. Interaction
 Reference: §13 (brush cursor ring) and `handlePaint` in `FloodPlayground.jsx`.
@@ -41,9 +46,8 @@ The one piece that is genuinely a rewrite rather than a port: preset switcher,
 tool palette, stats readout, storm button, rain slider. React does not translate.
 
 ### 4. Loose ends
-- **Per-preset environment.** `WorldBuilder` and `Weather` hardcode `ENV.coastal`, so
-  fog colour, sun tint and the clear-sky palette are identical on all four maps.
-  Storm values are shared in the reference, so only the clear-weather side needs it.
+- **The sun disc** (a glowing sphere, hidden on overcast presets via `EnvConfig.Sun`)
+  is not built yet. The flag is already carried across.
 - **Mangroves and drains** are built once at world-build time and never rebuilt,
   which blocks interactive painting. They do not move, so they can stay baked — they
   just need a rebuild trigger.
