@@ -28,6 +28,7 @@ namespace HabagatEditor
             var worldGo = new GameObject("World");
             worldGo.AddComponent<HabagatWorld>();
             var paint = worldGo.AddComponent<PaintController>();
+            worldGo.AddComponent<HabagatUI>();
 
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
@@ -48,6 +49,12 @@ namespace HabagatEditor
             orbit.distance = 92f;
             paint.cam = cam;
             paint.orbit = orbit;
+
+            // uGUI needs an EventSystem to route clicks, and this project is set to
+            // Input System only — the legacy StandaloneInputModule would never fire.
+            var es = new GameObject("EventSystem");
+            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
 
             System.IO.Directory.CreateDirectory("Assets/Scenes");
             EditorSceneManager.SaveScene(scene, "Assets/Scenes/Habagat.unity");

@@ -1,5 +1,7 @@
 using Habagat.Render;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 namespace Habagat
 {
@@ -55,22 +57,40 @@ namespace Habagat
 
         private void Update()
         {
-            // Number keys pick a tool. A stand-in until the UI exists — without some
-            // way to switch, none of this can be exercised at all.
-            for (int i = 0; i <= 6; i++)
-                if (Input.GetKeyDown(KeyCode.Alpha0 + i)) brush = (Brush)i;
+            var mouse = Mouse.current;
+            var keys = Keyboard.current;
+
+            // Number keys also pick a tool, which is handy while testing.
+            if (keys != null)
+            {
+                if (keys.digit0Key.wasPressedThisFrame) brush = Brush.None;
+                if (keys.digit1Key.wasPressedThisFrame) brush = Brush.Raise;
+                if (keys.digit2Key.wasPressedThisFrame) brush = Brush.Lower;
+                if (keys.digit3Key.wasPressedThisFrame) brush = Brush.Water;
+                if (keys.digit4Key.wasPressedThisFrame) brush = Brush.Mangrove;
+                if (keys.digit5Key.wasPressedThisFrame) brush = Brush.DrainPump;
+                if (keys.digit6Key.wasPressedThisFrame) brush = Brush.Clear;
+            }
 
             // The camera and the brush both want the left drag, so exactly one of
             // them may have it.
             if (orbit != null) orbit.orbitEnabled = brush == Brush.None;
 
-            if (brush == Brush.None || cam == null || _world.World == null)
+            if (brush == Brush.None || cam == null || mouse == null || _world.World == null)
             {
                 if (_cursor.gameObject.activeSelf) _cursor.gameObject.SetActive(false);
                 return;
             }
 
-            var ray = cam.ScreenPointToRay(Input.mousePosition);
+            // A drag that starts on the tool palette must not also dig a hole in the
+            // ground behind it.
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            {
+                if (_cursor.gameObject.activeSelf) _cursor.gameObject.SetActive(false);
+                return;
+            }
+
+            var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
             if (!Physics.Raycast(ray, out var hit, 2000f))
             {
                 if (_cursor.gameObject.activeSelf) _cursor.gameObject.SetActive(false);
@@ -88,7 +108,7 @@ namespace Habagat
             int gy = Mathf.FloorToInt(-hit.point.z + FloodSim.H / 2f);
             if (gx < 0 || gx >= FloodSim.W || gy < 0 || gy >= FloodSim.H) return;
 
-            if (Input.GetMouseButton(0)) Paint(gx, gy);
+            if (mouse.leftButton.isPressed) Paint(gx, gy);
         }
 
         private void Paint(int gx, int gy)
