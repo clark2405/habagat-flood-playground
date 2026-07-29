@@ -18,31 +18,31 @@ hazards that have already cost time.
 - The world outside the sandbox floods with the play area, so a storm no longer
   renders as a rectangle of water in a dry landscape
 - Gradient sky dome, per-preset atmosphere, and distant backdrop silhouettes
+- Brush painting: raycast onto the terrain, cursor ring, all six tools, with the
+  terrain and painted props rebuilt as needed
 - One construction path: `WorldBuilder` is used by both the play scene and the
   screenshot harness, so a screenshot is evidence about what actually runs
 
 ## Next up, in order
 
-### 1. Interaction  ← next
-Reference: §13 (brush cursor ring) and `handlePaint` in `FloodPlayground.jsx`.
-
-Raycast onto the terrain, convert the hit to a grid cell, drive `FloodSim.Paint`.
-The tools already exist in C# and are fingerprint-verified; this is the input
-plumbing and the cursor ring. Painting must trigger a props rebuild.
-
-### 2. UI
+### 1. UI  ← next
 The one piece that is genuinely a rewrite rather than a port: preset switcher,
 tool palette, stats readout, storm button, rain slider. React does not translate.
 
-### 3. Loose ends
+### 2. Loose ends
 - **The sun disc** (a glowing sphere, hidden on overcast presets via `EnvConfig.Sun`)
   is not built yet. The flag is already carried across.
 - **Backdrop silhouettes are smooth-shaded**, where the reference sets
   `flatShading: true`. At 34-78% haze the difference is barely visible, which is why
   it was left; `Prim.Cone` would need a flat-normal variant to match exactly.
-- **Mangroves and drains** are built once at world-build time and never rebuilt,
-  which blocks interactive painting. They do not move, so they can stay baked — they
-  just need a rebuild trigger.
+- **Painting has not been exercised live.** The rebuild paths and the grid mapping
+  are verified, but a mouse drag needs Play mode, which the headless harness cannot
+  reach. First thing to try on pressing Play: keys 1-6 pick a tool, 0 returns to
+  orbit.
+- **Tool switching is number keys**, a stand-in until the UI exists.
+- **No house tool.** The reference's `house` brush appends to React state that the
+  scene rebuilds from; it needs the same houses list to exist on the Unity side.
+- **No sound.** The reference plays a cue per tool.
 - **Ambient occlusion.** The web build's GTAO pass is a large part of why props sit
   in the ground rather than float on it; Unity has no equivalent yet. `thickness`
   mattering more than `radius` is recorded in `CLAUDE.md`.

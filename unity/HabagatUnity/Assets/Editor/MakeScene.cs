@@ -27,6 +27,7 @@ namespace HabagatEditor
 
             var worldGo = new GameObject("World");
             worldGo.AddComponent<HabagatWorld>();
+            var paint = worldGo.AddComponent<PaintController>();
 
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
@@ -45,6 +46,8 @@ namespace HabagatEditor
 
             var orbit = camGo.AddComponent<OrbitCamera>();
             orbit.distance = 92f;
+            paint.cam = cam;
+            paint.orbit = orbit;
 
             System.IO.Directory.CreateDirectory("Assets/Scenes");
             EditorSceneManager.SaveScene(scene, "Assets/Scenes/Habagat.unity");

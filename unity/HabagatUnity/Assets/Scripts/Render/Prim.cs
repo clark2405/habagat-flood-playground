@@ -138,6 +138,26 @@ namespace Habagat.Render
         /// <summary>THREE.ConeGeometry(r, h, seg) — a cylinder with no top.</summary>
         public static MeshData Cone(float r, float h, int seg) => Cylinder(0f, r, h, seg);
 
+        // ── Ring ─────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Flat annulus lying in the XZ plane, facing up — THREE.RingGeometry with
+        /// the reference's <c>rotateX(-PI/2)</c> already baked in. Used for the brush
+        /// cursor, which has to lie ON the ground rather than stand up out of it.
+        /// </summary>
+        public static MeshData Ring(float inner, float outer, int seg)
+        {
+            var v = new List<Vector3>(); var n = new List<Vector3>(); var t = new List<int>();
+            for (int i = 0; i < seg; i++)
+            {
+                float a0 = i / (float)seg * Mathf.PI * 2f;
+                float a1 = (i + 1) / (float)seg * Mathf.PI * 2f;
+                Vector3 P(float a, float r) => new(Mathf.Sin(a) * r, 0f, Mathf.Cos(a) * r);
+                Quad(v, n, t, P(a0, inner), P(a1, inner), P(a1, outer), P(a0, outer),
+                     Vector3.up, Vector3.up, Vector3.up, Vector3.up, Vector3.up);
+            }
+            return Pack(v, n, t);
+        }
+
         // ── Sphere ───────────────────────────────────────────────────────────
         /// <summary>
         /// THREE.SphereGeometry(radius, widthSegments, heightSegments). Used for the
