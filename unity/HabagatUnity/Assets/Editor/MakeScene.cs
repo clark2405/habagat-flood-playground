@@ -35,7 +35,9 @@ namespace HabagatEditor
             cam.nearClipPlane = 0.5f;
             cam.farClipPlane = 1000f;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = WorldBuilder.FogColor;
+            // Only ever visible if the sky dome fails to draw; the dome covers the
+            // background in normal operation.
+            cam.backgroundColor = WorldBuilder.Hex(EnvConfig.For(PresetType.Coastal).Fog);
             cam.allowHDR = true;
 
             var camData = camGo.AddComponent<UniversalAdditionalCameraData>();

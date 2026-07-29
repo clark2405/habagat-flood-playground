@@ -27,6 +27,16 @@ namespace Habagat.Render
         private readonly double[] _tmp = new double[W * H];
         private Mesh _mesh;
 
+        /// <summary>
+        /// The RELAXED water surface, one entry per cell, or <c>NoWater</c>. The
+        /// surrounding world reads its border level from here rather than from raw
+        /// water depth, because that is the only way the two sheets can agree
+        /// exactly where they meet.
+        /// </summary>
+        public double[] Surface => _surf;
+
+        public const double NoWaterLevel = NoWater;
+
         public Mesh Mesh => _mesh;
 
         public WaterMeshBuilder()

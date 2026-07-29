@@ -81,8 +81,9 @@ namespace Habagat
             // flood should still have moving water, or the whole scene reads as a
             // screenshot.
             _time += Time.deltaTime;
-            Weather.Tick(World, rain, storm, Time.deltaTime);
+            Weather.Tick(World, Sim, rain, storm, Time.deltaTime);
             World.RefreshWater(Sim, preset, _time, Weather.SwellAmp);
+            World.RefreshOuterWater(Sim, preset, Weather.BgDepth, _time, Weather.SwellAmp);
             Weather.RideSwell(World, _time);
         }
 
@@ -94,8 +95,9 @@ namespace Habagat
             // enough ticks to actually get wet — 400 lands within a per-mille of the
             // target at the 0.025 rate. Without this a `-storm 1` screenshot shows
             // storm water under a bone-dry landscape.
-            for (int i = 0; i < 400; i++) Weather.Tick(World, rainAmount, stormy, 1f / 60f);
+            for (int i = 0; i < 400; i++) Weather.Tick(World, Sim, rainAmount, stormy, 1f / 60f);
             World.RefreshWater(Sim, preset, _time, Weather.SwellAmp);
+            World.RefreshOuterWater(Sim, preset, Weather.BgDepth, _time, Weather.SwellAmp);
             Weather.RideSwell(World, _time);
         }
 

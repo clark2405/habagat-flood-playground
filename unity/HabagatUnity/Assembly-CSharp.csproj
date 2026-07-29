@@ -77,14 +77,17 @@
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\Scripts\Render\OuterlandBuilder.cs" />
     <Compile Include="Assets\Scripts\HabagatWorld.cs" />
+    <Compile Include="Assets\Scripts\Render\SkyDome.cs" />
     <Compile Include="Assets\Scripts\Sim\FloodSim.cs" />
     <Compile Include="Assets\Scripts\Render\Prim.cs" />
     <Compile Include="Assets\Scripts\OrbitCamera.cs" />
+    <Compile Include="Assets\Scripts\Sim\EnvConfig.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\Shaders\RainLine.shader" />
     <None Include="Assets\Shaders\WaterVertexColor.shader" />
     <None Include="Assets\Shaders\VertexColorLit.shader" />
+    <None Include="Assets\Shaders\SkyDome.shader" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
