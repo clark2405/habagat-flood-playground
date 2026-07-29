@@ -83,6 +83,12 @@ namespace Habagat.Render
             _skyZenith = Color.Lerp(_skyZenith, Hex(storm ? EnvConfig.StormZenith : env.Zenith), 0.05f);
             world.Sky.Paint(_skyHorizon, _skyMid, _skyZenith);
 
+            // Keep the distant silhouettes hazed toward whatever the sky is doing.
+            // Without this they hold their clear-weather tone through a storm and
+            // read as cut-outs pasted on the sky rather than sitting in it.
+            foreach (var bd in world.BackdropLayers)
+                bd.Mat.SetColor("_Tint", Color.Lerp(bd.Base, _skyHorizon, bd.Haze));
+
             // The fog colour IS the sky's horizon band, not merely close to it. Copy
             // rather than lerp separately, or the two drift apart under fast weather
             // changes and a hard horizon line appears where the terrain fades out.
