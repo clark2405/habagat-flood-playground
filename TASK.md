@@ -21,6 +21,7 @@ hazards that have already cost time.
 - Brush painting: raycast onto the terrain, cursor ring, all six tools, with the
   terrain and painted props rebuilt as needed
 - UI: presets, camera views, tool palette, stats, storm, pause, rain slider
+- Ambient occlusion, tuned to this world's scale
 
 **The port is feature-complete against the web build.** What follows is polish and
 the gaps listed below.
@@ -43,9 +44,6 @@ the gaps listed below.
 - **No house tool.** The reference's `house` brush appends to React state that the
   scene rebuilds from; it needs the same houses list to exist on the Unity side.
 - **No sound.** The reference plays a cue per tool.
-- **Ambient occlusion.** The web build's GTAO pass is a large part of why props sit
-  in the ground rather than float on it; Unity has no equivalent yet. `thickness`
-  mattering more than `radius` is recorded in `CLAUDE.md`.
 - **Performance.** Nothing has been profiled. The web baseline to beat is 115–143
   fps across all four presets at 1600×900 on an RTX 4050.
 - **The `-view plan` fog override** is the last harness-only branch left in
