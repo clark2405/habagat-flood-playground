@@ -62,6 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Scripts\Render\WorldDress.cs" />
+    <Compile Include="Assets\Scripts\SelfTest.cs" />
     <Compile Include="Assets\Scripts\PaintController.cs" />
     <Compile Include="Assets\Scripts\Render\TerrainMeshBuilder.cs" />
     <Compile Include="Assets\Scripts\Render\Weather.cs" />

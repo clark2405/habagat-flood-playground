@@ -25,7 +25,14 @@ namespace Habagat
         public float minPolar = 12f;
         public float maxPolar = 68f;
 
-        public float yaw = 45f;
+        /// <summary>
+        /// 135, not 45. The reference camera sits at (56, 52, 56) in a right-handed
+        /// scene, which mirrors to (56, 52, -56) here — positive X, NEGATIVE Z. A yaw
+        /// of 45 puts the eye at +X +Z, the opposite corner, and since prop geometry
+        /// was mirrored to face the intended camera every building would then present
+        /// its back: porticos, doors and windows all on the hidden side.
+        /// </summary>
+        public float yaw = 135f;
         public float pitch = 48f;
 
         /// <summary>
