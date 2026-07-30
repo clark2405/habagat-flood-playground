@@ -64,6 +64,7 @@
     <Compile Include="Assets\TutorialInfo\Scripts\Editor\ReadmeEditor.cs" />
     <Compile Include="Assets\Editor\SimVerify.cs" />
     <Compile Include="Assets\Editor\SceneShot.cs" />
+    <Compile Include="Assets\Editor\BuildPlayer.cs" />
     <Compile Include="Assets\Editor\MakeScene.cs" />
   </ItemGroup>
   <ItemGroup>

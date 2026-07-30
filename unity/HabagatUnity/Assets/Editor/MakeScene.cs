@@ -29,6 +29,8 @@ namespace HabagatEditor
             worldGo.AddComponent<HabagatWorld>();
             var paint = worldGo.AddComponent<PaintController>();
             worldGo.AddComponent<HabagatUI>();
+            // Inert unless the player is launched with -selftest.
+            worldGo.AddComponent<SelfTest>();
 
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
@@ -46,7 +48,14 @@ namespace HabagatEditor
             camData.renderPostProcessing = true;
 
             var orbit = camGo.AddComponent<OrbitCamera>();
+            // Set explicitly, not left to the field initialiser. These are SERIALIZED
+            // fields: once the scene asset exists it carries whatever value was
+            // written into it, and later edits to the C# default change nothing —
+            // which is exactly how the camera kept looking at the map from the wrong
+            // corner after the default had already been corrected.
             orbit.distance = 92f;
+            orbit.yaw = 135f;
+            orbit.pitch = 48f;
             paint.cam = cam;
             paint.orbit = orbit;
 

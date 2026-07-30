@@ -52,7 +52,8 @@ slope into a herringbone. Normals come from analytic central differences, not
 `computeVertexNormals()`.
 
 Baseline performance to hold: **115–143 fps** across all four presets, calm and
-storm, at 1600×900 on an RTX 4050.
+storm, at 1600×900 on an RTX 4050. The Unity player measures **150 fps calm / 142
+storm** at 1280×720 (`Habagat.exe -selftest`).
 
 ## Gotchas already paid for
 
@@ -64,6 +65,16 @@ storm, at 1600×900 on an RTX 4050.
   scene uses `VertexColorLit`, so for a long time sweeping SSAO radius and intensity
   through their whole range changed not one pixel. If an AO setting appears to do
   nothing, check that something is sampling it before touching the numbers.
+- **A shader found only by `Shader.Find` gets stripped from a build.** Every material
+  here is made in code, so from Unity's asset-reference point of view nothing uses
+  these shaders. `Shader.Find` then returns null in the player, `WorldBuilder` bails,
+  and the build launches to an EMPTY SCENE while reporting a successful build with
+  zero errors. `BuildPlayer.EnsureShadersIncluded` registers all four as
+  always-included and runs automatically before every build.
+- **A generated scene freezes serialized fields.** `Assets/Scenes/Habagat.unity` is
+  authored by `Habagat/Rebuild Play Scene`; once it exists it carries the values that
+  were written into it, and editing a C# field initialiser changes nothing. Set
+  anything that matters explicitly in `MakeScene` and regenerate.
 - **GTAO `thickness` matters more than `radius`.** Left at its default of 1.0 the
   horizon search passes straight through props 2–4 units deep and the AO buffer
   comes back blank regardless of radius or blend intensity. It is set to match the

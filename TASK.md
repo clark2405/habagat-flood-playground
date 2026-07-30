@@ -36,25 +36,28 @@ the gaps listed below.
 - **Backdrop silhouettes are smooth-shaded**, where the reference sets
   `flatShading: true`. At 34-78% haze the difference is barely visible, which is why
   it was left; `Prim.Cone` would need a flat-normal variant to match exactly.
-- **Nothing has been exercised live.** Painting, buttons, the slider and the camera
-  all render correctly and compile, but no mouse has touched them — Play mode is out
-  of reach of the headless harness. This is the single biggest untested area.
+- **A human still has not clicked anything.** `Habagat.exe -selftest` drives
+  synthetic mouse events through the real input path and checks 17 behaviours, but
+  it proves the paths execute and change what they should — not that the result
+  feels right. Camera feel, brush responsiveness and UI scale are unjudged.
 - **UI styling is plain.** Square panels and the built-in font, against the
   reference's rounded pills and icons. Legible and functional, not yet cozy.
 - **No house tool.** The reference's `house` brush appends to React state that the
   scene rebuilds from; it needs the same houses list to exist on the Unity side.
 - **No sound.** The reference plays a cue per tool.
-- **Performance** is measured but only in batch mode, which is not a frame rate —
-  no present, no vsync, `Camera.Render` synchronous. `-bench N` reports the work
-  this project adds per frame. Coastal at 1600×900: calm 1.05 + 2.24 = 3.29 ms,
-  storm 5.17 + 3.28 = 8.45 ms. The storm figure is the one to watch; a real player
-  frame rate still needs measuring in a build.
+- **Performance** is now measured in a real build: 150 fps calm, 142 fps storm at
+  1280×720. `-bench N` in the editor harness still reports the per-frame work in
+  isolation (coastal calm 3.29 ms, storm 8.45 ms) which is the better signal for
+  spotting a regression.
 - **The `-view plan` fog override** is the last harness-only branch left in
   `SceneShot`; everything else now comes from `WorldBuilder`.
 
 ## Verifying
 
 ```bash
+Unity.exe -batchmode -quit -projectPath unity/HabagatUnity   -executeMethod HabagatEditor.BuildPlayer.Run -buildOut <dir>   # standalone build
+<dir>/Habagat.exe -selftest -report r.txt -screen-width 1280 -screen-height 720
+
 dotnet run --project unity/HabagatSim.Verify     # sim fidelity, must stay identical
 
 Unity.exe -batchmode -quit -projectPath unity/HabagatUnity \

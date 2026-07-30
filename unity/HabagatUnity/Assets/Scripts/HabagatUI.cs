@@ -183,9 +183,9 @@ namespace Habagat
             })
                 _presetBtns.Add((Pill(topBar.transform, name, () => SwitchPreset(preset), 150), preset));
 
-            Pill(topBar.transform, "Iso", () => SetView(45f, 48f, 92f), 80);
-            Pill(topBar.transform, "Top", () => SetView(45f, 13f, 100f), 80);
-            Pill(topBar.transform, "Cozy", () => SetView(30f, 62f, 46f), 90);
+            Pill(topBar.transform, "Iso", () => SetView(135f, 48f, 92f), 80);
+            Pill(topBar.transform, "Top", () => SetView(135f, 13f, 100f), 80);
+            Pill(topBar.transform, "Cozy", () => SetView(120f, 62f, 46f), 90);
 
             // Everything else stacks at the bottom centre.
             var bottom = Node("Bottom", root);
