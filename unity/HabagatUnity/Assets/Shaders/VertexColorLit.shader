@@ -46,6 +46,13 @@ Shader "Habagat/VertexColorLit"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
             #pragma multi_compile_fog
+            // Without this keyword URP still RENDERS the ambient-occlusion buffer,
+            // it just never reaches anything: the AO is applied by the shader that
+            // samples it, and every surface in this scene uses this one. Omitting it
+            // makes the SSAO renderer feature look broken and its settings inert —
+            // radius and intensity can be swept through their whole range with no
+            // change to a single pixel.
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -100,8 +107,19 @@ Shader "Habagat/VertexColorLit"
                 Light mainLight = GetMainLight(shadowCoord);
                 half3 lightColor = mainLight.color * (mainLight.shadowAttenuation * mainLight.distanceAttenuation);
 
-                half3 diffuse = LightingLambert(lightColor, mainLight.direction, N);
                 half3 ambient = SampleSH(N);
+
+                // Contact shading. The web build leans on its GTAO pass for a lot of
+                // what makes props sit IN the ground rather than hover over it, so
+                // losing it here is not a subtle difference.
+                #if defined(_SCREEN_SPACE_OCCLUSION)
+                    float2 aoUV = GetNormalizedScreenSpaceUV(IN.positionCS);
+                    AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(aoUV);
+                    ambient *= ao.indirectAmbientOcclusion;
+                    lightColor *= ao.directAmbientOcclusion;
+                #endif
+
+                half3 diffuse = LightingLambert(lightColor, mainLight.direction, N);
 
                 half3 col = albedo * (diffuse + ambient);
                 col += albedo * IN.color.a * _EmissiveFromAlpha;

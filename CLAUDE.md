@@ -56,6 +56,14 @@ storm, at 1600×900 on an RTX 4050.
 
 ## Gotchas already paid for
 
+- **Ambient occlusion fails silently in BOTH builds, for different reasons.** In
+  Unity, URP renders the SSAO buffer whether or not anything consumes it: the AO is
+  applied by the shader that samples it, so a custom lit shader without
+  `#pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION` and a
+  `GetScreenSpaceAmbientOcclusion` call discards it entirely. Every surface in this
+  scene uses `VertexColorLit`, so for a long time sweeping SSAO radius and intensity
+  through their whole range changed not one pixel. If an AO setting appears to do
+  nothing, check that something is sampling it before touching the numbers.
 - **GTAO `thickness` matters more than `radius`.** Left at its default of 1.0 the
   horizon search passes straight through props 2–4 units deep and the AO buffer
   comes back blank regardless of radius or blend intensity. It is set to match the
