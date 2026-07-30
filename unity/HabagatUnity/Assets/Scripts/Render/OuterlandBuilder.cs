@@ -59,6 +59,9 @@ namespace Habagat.Render
         private int _swellRings;       // rings near enough to be worth displacing
         private Vector3[] _waterVerts;
         private Color[] _waterColors;
+        private double _lastBgDepth = double.NaN;
+        private bool _wasAnimating;
+        private bool _colorsDirty = true;
 
         public Mesh Land { get; private set; }
         public Mesh Water { get; private set; }
@@ -272,6 +275,14 @@ namespace Habagat.Render
             var wS = palette.WaterShallow;
             var wD = palette.WaterDeep;
 
+            // This sheet is ~22,000 vertices — a third as many again as the play
+            // area — and most of the time not one of them moves. Rewriting and
+            // re-uploading it every frame regardless is the single most expensive
+            // thing this project could do for no visible result, so the reference
+            // guards it and so does this.
+            bool levelsChanged = double.IsNaN(_lastBgDepth) || Math.Abs(bgDepth - _lastBgDepth) > 0.0015;
+            _lastBgDepth = bgDepth;
+
             // Only low-lying shoreline cells may push the level up. Otherwise rain
             // pooling on a hillside inside the sandbox drags the whole horizon's
             // water up with it.
@@ -279,14 +290,20 @@ namespace Habagat.Render
             {
                 int bi = _border[p].I;
                 double bs = playSurface[bi];
-                _borderSurf[p] = (bs > SeaLevel && bs > WaterMeshBuilder.NoWaterLevel
-                                  && elev[bi] <= SeaLevel + 0.8)
+                double lvl = (bs > SeaLevel && bs > WaterMeshBuilder.NoWaterLevel
+                              && elev[bi] <= SeaLevel + 0.8)
                     ? Math.Min(bs, SeaLevel + 2.0)
                     : SeaLevel;
+                if (Math.Abs(lvl - _borderSurf[p]) > 0.002) levelsChanged = true;
+                _borderSurf[p] = lvl;
             }
 
             // Displacement is only worth computing while the sea is actually moving.
+            // The trailing `_wasAnimating` matters: when the swell stops, one more
+            // pass is needed to settle the surface flat, or it freezes mid-wave.
             bool animating = swellAmp > 0.09;
+            if (!levelsChanged && !animating && !_wasAnimating) return;
+            _wasAnimating = animating;
             int jMax = animating ? _swellRings : 0;
 
             for (int p = 0; p < _p; p++)
@@ -311,6 +328,9 @@ namespace Habagat.Render
                         y = level + WaterMeshBuilder.SwellAt(wx, wz, time) * swellAmp * Math.Min(1, depth / 0.8);
                     _waterVerts[k] = new Vector3(wx, (float)y, wz);
 
+                    // Colour depends only on depth, so it is rewritten only when a
+                    // level actually moved — the swell alone does not change it.
+                    if (!levelsChanged && !_colorsDirty) continue;
                     if (depth <= 0) { _waterColors[k].a = 0f; continue; }
                     double kk = Math.Min(1, Math.Max(0,
                         TerrainColors.Smooth(0.02, 1.7, depth) + _owTint[k] * 1.1));
@@ -323,7 +343,7 @@ namespace Habagat.Render
             }
 
             Water.vertices = _waterVerts;
-            Water.colors = _waterColors;
+            if (levelsChanged || _colorsDirty) { Water.colors = _waterColors; _colorsDirty = false; }
         }
 
         /// <summary>

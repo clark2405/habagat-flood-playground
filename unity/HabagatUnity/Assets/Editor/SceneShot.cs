@@ -182,6 +182,40 @@ namespace HabagatEditor
                 if (camData == null) camData = camGo.AddComponent<UniversalAdditionalCameraData>();
                 camData.renderPostProcessing = true;
 
+                // ── Benchmark ────────────────────────────────────────────────
+                // `-bench N` runs the real per-frame path N times and reports the
+                // cost. Batch-mode timing is not a player frame rate — there is no
+                // present, no vsync, and Camera.Render is synchronous — but it does
+                // measure the work this project actually adds per frame, which is
+                // where a regression would show up first.
+                int bench = int.Parse(Arg("-bench", "0"));
+                if (bench > 0)
+                {
+                    var rtB = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+                    cam.targetTexture = rtB;
+                    cam.Render(); // warm shaders and buffers before timing anything
+
+                    var swSim = new System.Diagnostics.Stopwatch();
+                    var swRender = new System.Diagnostics.Stopwatch();
+                    for (int i = 0; i < bench; i++)
+                    {
+                        swSim.Start();
+                        world.Advance(2, rain, storm, settleWeather: false);
+                        swSim.Stop();
+                        swRender.Start();
+                        cam.Render();
+                        swRender.Stop();
+                    }
+                    cam.targetTexture = null;
+                    UnityEngine.Object.DestroyImmediate(rtB);
+
+                    double sim = swSim.Elapsed.TotalMilliseconds / bench;
+                    double ren = swRender.Elapsed.TotalMilliseconds / bench;
+                    Debug.Log($"[Bench] {presetName} frames={bench} " +
+                              $"update={sim:F2}ms render={ren:F2}ms total={sim + ren:F2}ms " +
+                              $"({1000.0 / (sim + ren):F0} fps equivalent)");
+                }
+
                 // ── Render ───────────────────────────────────────────────────
                 // Supersample rather than rely on the RenderTexture's antiAliasing
                 // field — URP takes its MSAA setting from the pipeline asset and

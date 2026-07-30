@@ -44,8 +44,11 @@ the gaps listed below.
 - **No house tool.** The reference's `house` brush appends to React state that the
   scene rebuilds from; it needs the same houses list to exist on the Unity side.
 - **No sound.** The reference plays a cue per tool.
-- **Performance.** Nothing has been profiled. The web baseline to beat is 115–143
-  fps across all four presets at 1600×900 on an RTX 4050.
+- **Performance** is measured but only in batch mode, which is not a frame rate —
+  no present, no vsync, `Camera.Render` synchronous. `-bench N` reports the work
+  this project adds per frame. Coastal at 1600×900: calm 1.05 + 2.24 = 3.29 ms,
+  storm 5.17 + 3.28 = 8.45 ms. The storm figure is the one to watch; a real player
+  frame rate still needs measuring in a build.
 - **The `-view plan` fog override** is the last harness-only branch left in
   `SceneShot`; everything else now comes from `WorldBuilder`.
 

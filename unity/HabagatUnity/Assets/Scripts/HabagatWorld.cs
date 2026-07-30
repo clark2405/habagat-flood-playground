@@ -103,14 +103,15 @@ namespace Habagat
         }
 
         /// <summary>Advance the simulation without rendering — used by the harness.</summary>
-        public void Advance(int ticks, float rainAmount, bool stormy)
+        public void Advance(int ticks, float rainAmount, bool stormy, bool settleWeather = true)
         {
             for (int i = 0; i < ticks; i++) Stats = Sim.Step(rainAmount, stormy, _houseCells);
             // Weather eases rather than snapping, so a still frame has to be given
             // enough ticks to actually get wet — 400 lands within a per-mille of the
             // target at the 0.025 rate. Without this a `-storm 1` screenshot shows
             // storm water under a bone-dry landscape.
-            for (int i = 0; i < 400; i++) Weather.Tick(World, Sim, rainAmount, stormy, 1f / 60f);
+            for (int i = 0; i < (settleWeather ? 400 : 1); i++)
+                Weather.Tick(World, Sim, rainAmount, stormy, 1f / 60f);
             World.RefreshWater(Sim, preset, _time, Weather.SwellAmp);
             World.RefreshOuterWater(Sim, preset, Weather.BgDepth, _time, Weather.SwellAmp);
             Weather.RideSwell(World, _time);
