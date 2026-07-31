@@ -11,6 +11,20 @@ npm run build                                # production build
 dotnet run --project unity/HabagatSim.Verify # C# sim fidelity check (see below)
 ```
 
+Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
+-executeMethod <method>`):
+
+| method | what it does |
+| --- | --- |
+| `HabagatEditor.MakeScene.Run` | regenerates `Assets/Scenes/Habagat.unity` |
+| `HabagatEditor.SceneShot.Run` | renders a PNG; `-bench N` times the frame loop |
+| `HabagatEditor.BuildPlayer.Run` | standalone player, `-buildOut <dir>` |
+| `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity |
+
+Then `Habagat.exe -selftest -report r.txt` runs 17 checks against the built player
+— brush, buttons, preset switching, frame rate — and exits non-zero on failure.
+It is the only check that covers anything a still frame cannot show.
+
 There is no test suite. Verification is done by (a) driving headless Chromium and
 looking at screenshots, and (b) the C# fingerprint diff.
 
