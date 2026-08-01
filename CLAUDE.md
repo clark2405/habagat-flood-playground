@@ -66,8 +66,12 @@ slope into a herringbone. Normals come from analytic central differences, not
 `computeVertexNormals()`.
 
 Baseline performance to hold: **115–143 fps** across all four presets, calm and
-storm, at 1600×900 on an RTX 4050. The Unity player measures **150 fps calm / 142
-storm** at 1280×720 (`Habagat.exe -selftest`).
+storm, at 1600×900 on an RTX 4050. The Unity player measures **~390 fps calm / ~175
+storm** at 1280×720 (`Habagat.exe -selftest`). Take that reading with nothing else
+on the GPU: the first figures recorded here were 150/142, measured with the editor
+still running, and an A/B against an unchanged build put the real number 2.5x
+higher. Measure a delta against a build from the same sitting, never against a
+number written down on another day.
 
 ## Gotchas already paid for
 

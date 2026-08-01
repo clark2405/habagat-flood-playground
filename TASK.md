@@ -40,13 +40,14 @@ the gaps listed below.
   synthetic mouse events through the real input path and checks 17 behaviours, but
   it proves the paths execute and change what they should — not that the result
   feels right. Camera feel, brush responsiveness and UI scale are unjudged.
-- **UI styling is plain.** Square panels and the built-in font, against the
-  reference's rounded pills and icons. Legible and functional, not yet cozy.
+- **UI has no icons.** The reference pairs every button with a small glyph; these
+  are text-only. Rounded corners and hover states are done.
 - **No house tool.** The reference's `house` brush appends to React state that the
   scene rebuilds from; it needs the same houses list to exist on the Unity side.
 - **No sound.** The reference plays a cue per tool.
-- **Performance** is now measured in a real build: 150 fps calm, 142 fps storm at
-  1280×720. `-bench N` in the editor harness still reports the per-frame work in
+- **Performance** in a real build: ~390 fps calm, ~175 fps storm at 1280×720,
+  measured with nothing else running. An earlier 150/142 reading was taken with the
+  editor open and is not a usable baseline. `-bench N` in the editor harness still reports the per-frame work in
   isolation (coastal calm 3.29 ms, storm 8.45 ms) which is the better signal for
   spotting a regression.
 - **The `-view plan` fog override** is the last harness-only branch left in

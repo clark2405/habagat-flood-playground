@@ -21,6 +21,7 @@ namespace Habagat
     public class HabagatUI : MonoBehaviour
     {
         private static readonly Color Panel = new(1f, 1f, 1f, 0.93f);
+        private static readonly Color Idle = new(0.96f, 0.96f, 0.97f, 1f);
         private static readonly Color Ink = new(0.13f, 0.15f, 0.18f);
         private static readonly Color Accent = new(0.851f, 0.267f, 0.169f);   // 0xd9442b
         private static readonly Color Selected = new(0.106f, 0.114f, 0.208f); // dark pill
@@ -61,6 +62,61 @@ namespace Habagat
         // ── Widget helpers ───────────────────────────────────────────────────
         private static RectTransform Rect(GameObject go) => go.GetComponent<RectTransform>();
 
+        private static readonly Dictionary<int, Sprite> _rounded = new();
+
+        /// <summary>
+        /// A white rounded-rect sprite, generated rather than imported so the project
+        /// keeps no binary UI assets and the radius stays a number in code.
+        ///
+        /// Sliced with a border equal to the radius, so one small texture stretches to
+        /// any pill or panel without the corners deforming. The alpha ramp across the
+        /// last pixel is what keeps the curve from looking like a staircase — uGUI
+        /// does no antialiasing of its own.
+        /// </summary>
+        private static Sprite Rounded(int radius)
+        {
+            if (_rounded.TryGetValue(radius, out var cached)) return cached;
+
+            int size = radius * 2 + 4; // 4px of stretchable middle
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // How far outside the inner (un-rounded) rectangle this pixel sits;
+                    // zero anywhere in the straight edges and the middle.
+                    float dx = Mathf.Max(radius - x, x - (size - 1 - radius), 0f);
+                    float dy = Mathf.Max(radius - y, y - (size - 1 - radius), 0f);
+                    float a = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f);
+                    px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+
+            var sprite = Sprite.Create(tex, new UnityEngine.Rect(0, 0, size, size),
+                                       new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect,
+                                       new Vector4(radius, radius, radius, radius));
+            _rounded[radius] = sprite;
+            return sprite;
+        }
+
+        /// <summary>Selected and idle looks, both keeping hover and press feedback.</summary>
+        private static ColorBlock Colors(Color normal)
+        {
+            var cb = ColorBlock.defaultColorBlock;
+            cb.normalColor = normal;
+            cb.highlightedColor = normal * 0.94f;
+            cb.pressedColor = normal * 0.86f;
+            cb.selectedColor = normal;
+            cb.colorMultiplier = 1f;
+            cb.fadeDuration = 0.08f;
+            return cb;
+        }
+
         private GameObject Node(string name, Transform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -68,11 +124,16 @@ namespace Habagat
             return go;
         }
 
-        private GameObject Box(string name, Transform parent, Color color, float radius = 0f)
+        private GameObject Box(string name, Transform parent, Color color, int radius = 14)
         {
             var go = Node(name, parent);
             var img = go.AddComponent<Image>();
             img.color = color;
+            if (radius > 0)
+            {
+                img.sprite = Rounded(radius);
+                img.type = Image.Type.Sliced;
+            }
             return go;
         }
 
@@ -93,11 +154,17 @@ namespace Habagat
 
         private Button Pill(Transform parent, string text, System.Action onClick, float width = 150f)
         {
-            var go = Box("Btn_" + text, parent, new Color(0.96f, 0.96f, 0.97f, 1f));
+            // Colour lives in the Button's ColorBlock, not on the Image: the Button
+            // drives targetGraphic.color on every state change, so anything written
+            // straight onto the Image is overwritten the moment the pointer moves.
+            var go = Box("Btn_" + text, parent, Color.white, 10);
             var le = go.AddComponent<LayoutElement>();
             le.preferredWidth = width;
             le.preferredHeight = 40f;
             var btn = go.AddComponent<Button>();
+            btn.targetGraphic = go.GetComponent<Image>();
+            btn.transition = Selectable.Transition.ColorTint;
+            btn.colors = Colors(Idle);
             var label = Label("Text", go.transform, text, 15, Ink);
             var lr = Rect(label.gameObject);
             lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
@@ -108,8 +175,8 @@ namespace Habagat
 
         private static void Tint(Button b, bool active)
         {
-            var img = b.GetComponent<Image>();
-            img.color = active ? Selected : new Color(0.96f, 0.96f, 0.97f, 1f);
+            var want = active ? Selected : Idle;
+            if (b.colors.normalColor != want) b.colors = Colors(want);
             b.GetComponentInChildren<Text>().color = active ? Color.white : Ink;
         }
 
@@ -221,7 +288,7 @@ namespace Habagat
 
             var ctrlBar = Bar("Controls", bottom.transform, 14f);
             var stormBtn = Pill(ctrlBar.transform, "SUMMON HABAGAT STORM", ToggleStorm, 300);
-            stormBtn.GetComponent<Image>().color = Accent;
+            stormBtn.colors = Colors(Accent);
             stormBtn.GetComponentInChildren<Text>().color = Color.white;
             _pauseBtn = Pill(ctrlBar.transform, "Pause Sim", TogglePause, 130);
 
@@ -234,7 +301,7 @@ namespace Habagat
 
         private Slider BuildSlider(Transform parent)
         {
-            var go = Box("Rain", parent, new Color(0.88f, 0.89f, 0.9f));
+            var go = Box("Rain", parent, new Color(0.88f, 0.89f, 0.9f), 7);
             var le = go.AddComponent<LayoutElement>();
             le.preferredWidth = 200; le.preferredHeight = 14;
             var slider = go.AddComponent<Slider>();
@@ -244,7 +311,7 @@ namespace Habagat
             var far = Rect(fillArea);
             far.anchorMin = Vector2.zero; far.anchorMax = Vector2.one;
             far.offsetMin = far.offsetMax = Vector2.zero;
-            var fill = Box("Fill", fillArea.transform, Accent);
+            var fill = Box("Fill", fillArea.transform, Accent, 7);
             var fr = Rect(fill);
             fr.anchorMin = Vector2.zero; fr.anchorMax = Vector2.one;
             fr.offsetMin = fr.offsetMax = Vector2.zero;
