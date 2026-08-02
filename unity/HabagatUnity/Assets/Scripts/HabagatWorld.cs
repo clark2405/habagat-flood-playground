@@ -46,6 +46,12 @@ namespace Habagat
 
         private int[] _houseCells;
 
+        /// <summary>
+        /// The barangay: the preset's own homes plus anything the player has built.
+        /// Mutable, unlike <see cref="Barangay.For"/>, which is the fixed starting set.
+        /// </summary>
+        public readonly System.Collections.Generic.List<House> Houses = new();
+
         private double _time;
 
         private static int SeedFor(PresetType t) => t switch
@@ -73,15 +79,47 @@ namespace Habagat
             World?.Destroy();
             Sim = FloodSim.FromPreset(preset, SeedFor(preset));
             beforeBuild?.Invoke(Sim);
-            // Which cells hold a home, so the sim can report how many are underwater.
-            var houses = Barangay.For(preset);
-            _houseCells = new int[houses.Length];
-            for (int i = 0; i < houses.Length; i++)
-                _houseCells[i] = houses[i].Y * FloodSim.W + houses[i].X;
+            Houses.Clear();
+            Houses.AddRange(Barangay.For(preset));
+            RefreshHouseCells();
 
             World = new WorldBuilder();
-            if (!World.Build(Sim, preset, buildProps, transform)) { enabled = false; return; }
+            if (!World.Build(Sim, preset, buildProps, transform, Houses.ToArray()))
+            {
+                enabled = false;
+                return;
+            }
             Weather ??= new Weather(transform);
+        }
+
+        private void RefreshHouseCells()
+        {
+            // Which cells hold a home, so the sim can report how many are underwater.
+            _houseCells = new int[Houses.Count];
+            for (int i = 0; i < Houses.Count; i++)
+                _houseCells[i] = Houses[i].Y * FloodSim.W + Houses[i].X;
+        }
+
+        /// <summary>
+        /// Try to build a home on a cell. Refuses water and refuses to crowd an
+        /// existing house, matching the reference's rules, and returns whether one
+        /// actually went up so the caller can skip the rebuild if not.
+        /// </summary>
+        public bool AddHouse(int gx, int gy)
+        {
+            if (gx < 0 || gx >= FloodSim.W || gy < 0 || gy >= FloodSim.H) return false;
+            if (Sim.Elev[gy * FloodSim.W + gx] <= FloodSim.SeaLevel) return false;
+            foreach (var h in Houses)
+                if (Mathf.Sqrt((h.X - gx) * (h.X - gx) + (h.Y - gy) * (h.Y - gy)) < 2f) return false;
+
+            // Style is genuinely random, not drawn from the seeded stream — the
+            // reference uses Math.random here, so two players who build in the same
+            // place get different houses.
+            var styles = new[] { HouseStyle.Nipa, HouseStyle.Townhouse, HouseStyle.Store, HouseStyle.Apartment };
+            Houses.Add(new House(gx, gy, styles[Random.Range(0, styles.Length)]));
+            RefreshHouseCells();
+            World.RebuildProps(Sim, Houses.ToArray());
+            return true;
         }
 
         private void Update()

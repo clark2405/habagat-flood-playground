@@ -281,6 +281,7 @@ namespace Habagat
                 ("Flood Water", PaintController.Brush.Water),
                 ("Mangroves", PaintController.Brush.Mangrove),
                 ("Drain Pump", PaintController.Brush.DrainPump),
+                ("Barangay Home", PaintController.Brush.House),
                 ("Clear", PaintController.Brush.Clear),
             })
                 _toolBtns.Add((Pill(toolBar.transform, name,

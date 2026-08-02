@@ -21,7 +21,7 @@ namespace Habagat
         /// no-op tool: while it is selected the camera takes the left drag, and no
         /// paint happens at all.
         /// </summary>
-        public enum Brush { None, Raise, Lower, Water, Mangrove, DrainPump, Clear }
+        public enum Brush { None, Raise, Lower, Water, Mangrove, DrainPump, Clear, House }
 
         public Brush brush = Brush.None;
         public Camera cam;
@@ -70,6 +70,7 @@ namespace Habagat
                 if (keys.digit4Key.wasPressedThisFrame) brush = Brush.Mangrove;
                 if (keys.digit5Key.wasPressedThisFrame) brush = Brush.DrainPump;
                 if (keys.digit6Key.wasPressedThisFrame) brush = Brush.Clear;
+                if (keys.digit7Key.wasPressedThisFrame) brush = Brush.House;
             }
 
             // The camera and the brush both want the left drag, so exactly one of
@@ -113,6 +114,14 @@ namespace Habagat
 
         private void Paint(int gx, int gy)
         {
+            // Homes are placed, not painted: one per cell, and the whole scatter has
+            // to be regenerated around them, so this never goes through FloodSim.Paint.
+            if (brush == Brush.House)
+            {
+                _world.AddHouse(gx, gy);
+                return;
+            }
+
             var tool = brush switch
             {
                 Brush.Raise => FloodSim.Tool.Raise,

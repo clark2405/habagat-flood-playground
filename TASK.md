@@ -21,6 +21,9 @@ hazards that have already cost time.
 - Brush painting: raycast onto the terrain, cursor ring, all six tools, with the
   terrain and painted props rebuilt as needed
 - UI: presets, camera views, tool palette, stats, storm, pause, rain slider
+- All eight brushes, including Barangay Home
+
+**No features are missing against the web build.** What is left is polish.
 - Ambient occlusion, tuned to this world's scale
 
 **The port is feature-complete against the web build.** What follows is polish and
@@ -42,8 +45,6 @@ the gaps listed below.
   feels right. Camera feel, brush responsiveness and UI scale are unjudged.
 - **UI has no icons.** The reference pairs every button with a small glyph; these
   are text-only. Rounded corners and hover states are done.
-- **No house tool.** The reference's `house` brush appends to React state that the
-  scene rebuilds from; it needs the same houses list to exist on the Unity side.
 - **No sound.** The reference plays a cue per tool.
 - **Performance** in a real build: ~390 fps calm, ~175 fps storm at 1280×720,
   measured with nothing else running. An earlier 150/142 reading was taken with the
