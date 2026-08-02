@@ -49,8 +49,11 @@ namespace Habagat.Render
         private MeshFilter _terrainFilter;
         private MeshCollider _terrainCollider;
         private readonly System.Collections.Generic.List<GameObject> _simProps = new();
+        private readonly System.Collections.Generic.List<GameObject> _propObjects = new();
+        private Shader _shader;
 
-        public bool Build(FloodSim sim, PresetType type, bool withProps, Transform parent = null)
+        public bool Build(FloodSim sim, PresetType type, bool withProps, Transform parent = null,
+                          House[] houses = null)
         {
             var shader = Shader.Find("Habagat/VertexColorLit");
             var waterShader = Shader.Find("Habagat/WaterVertexColor");
@@ -63,20 +66,9 @@ namespace Habagat.Render
             var palette = TerrainPalette.For(type);
             Env = EnvConfig.For(type);
             _type = type;
+            _shader = shader;
             Root = new GameObject("HabagatWorld");
             if (parent != null) Root.transform.SetParent(parent, false);
-
-            GameObject Child(string name, Mesh mesh, Material mat, bool cast, bool receive)
-            {
-                var go = new GameObject(name);
-                go.transform.SetParent(Root.transform, false);
-                go.AddComponent<MeshFilter>().sharedMesh = mesh;
-                var r = go.AddComponent<MeshRenderer>();
-                r.sharedMaterial = mat;
-                r.shadowCastingMode = cast ? ShadowCastingMode.On : ShadowCastingMode.Off;
-                r.receiveShadows = receive;
-                return go;
-            }
 
             // ── Terrain ──────────────────────────────────────────────────────
             var terrainMesh = new TerrainMeshBuilder().Build(sim.Elev, palette);
@@ -109,25 +101,7 @@ namespace Habagat.Render
                 // Props are the only thing packing emissive into vertex alpha — the
                 // glass. Terrain and outerland leave this at 0.
                 _propMat.SetFloat("_EmissiveFromAlpha", 1f);
-
-                var batches = PropScatter.Build(sim, type);
-                batches.AddRange(WorldDress.Build(Outer, type));
-                foreach (var b in batches)
-                {
-                    if (!b.Dynamic)
-                    {
-                        Child("Props_" + b.Mesh.name, b.Bake(b.Mesh.name + "_baked"), _propMat, b.CastShadow, false);
-                        continue;
-                    }
-                    // One object per instance. Only a handful of these exist, so the
-                    // draw calls are affordable and they buy per-object animation.
-                    foreach (var m in b.Instances)
-                    {
-                        var go = Child(b.Mesh.name, b.Mesh, _propMat, b.CastShadow, false);
-                        go.transform.SetPositionAndRotation(m.GetColumn(3), m.rotation);
-                        Boats.Add(go.transform);
-                    }
-                }
+                BuildProps(sim, houses);
             }
 
             if (withProps) RebuildSimProps(sim);
@@ -203,6 +177,60 @@ namespace Habagat.Render
         public void RefreshOuterWater(FloodSim sim, PresetType type, double bgDepth,
                                       double time, double swellAmp) =>
             Outer.UpdateWater(sim, Water.Surface, TerrainPalette.For(type), bgDepth, time, swellAmp);
+
+        /// <summary>One renderer under the world root. Shared by the initial build
+        /// and by every later rebuild, so they cannot construct objects differently.</summary>
+        private GameObject Child(string name, Mesh mesh, Material mat, bool cast, bool receive)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(Root.transform, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = mat;
+            r.shadowCastingMode = cast ? ShadowCastingMode.On : ShadowCastingMode.Off;
+            r.receiveShadows = receive;
+            return go;
+        }
+
+        private void BuildProps(FloodSim sim, House[] houses)
+        {
+            var batches = PropScatter.Build(sim, _type, houses);
+            batches.AddRange(WorldDress.Build(Outer, _type));
+            foreach (var b in batches)
+            {
+                if (!b.Dynamic)
+                {
+                    _propObjects.Add(Child("Props_" + b.Mesh.name, b.Bake(b.Mesh.name + "_baked"),
+                                           _propMat, b.CastShadow, false));
+                    continue;
+                }
+                // One object per instance. Only a handful of these exist, so the draw
+                // calls are affordable and they buy per-object animation.
+                foreach (var m in b.Instances)
+                {
+                    var go = Child(b.Mesh.name, b.Mesh, _propMat, b.CastShadow, false);
+                    go.transform.SetPositionAndRotation(m.GetColumn(3), m.rotation);
+                    Boats.Add(go.transform);
+                    _propObjects.Add(go);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Rebuild the whole scatter, which is what placing a house costs. The yard
+        /// loop draws from the RNG once per house, so a new house shifts every draw
+        /// after it and there is no way to add one without re-running the lot — the
+        /// reference has the same property.
+        /// </summary>
+        public void RebuildProps(FloodSim sim, House[] houses)
+        {
+            if (_propMat == null) return;
+            foreach (var go in _propObjects)
+                if (go != null) { if (Application.isPlaying) Object.Destroy(go); else Object.DestroyImmediate(go); }
+            _propObjects.Clear();
+            Boats.Clear();
+            BuildProps(sim, houses);
+        }
 
         /// <summary>
         /// Re-mesh the terrain after the brush has moved it. The collider has to be

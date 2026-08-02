@@ -102,9 +102,6 @@ namespace Habagat
             _log.AppendLine($"DIAG  straight-down ray hit={downHit}" + (downHit ? $" on {dh.collider.name} at {dh.point}" : ""));
             var centreRay = c.ScreenPointToRay(centre);
             _log.AppendLine($"DIAG  centre ray origin={centreRay.origin} dir={centreRay.direction}");
-            ScreenCapture.CaptureScreenshot(Arg("-shot", "player.png"));
-            yield return null;
-
             float[] elev = world.Sim.Elev;
             var before = (float[])elev.Clone();
 
@@ -138,7 +135,52 @@ namespace Habagat
             for (int i = 0; i < 3; i++) yield return null;
             Check("mangrove brush plants", MangCount() > mangBefore, $"{mangBefore} -> {MangCount()}");
 
+            // Homes: placed on dry ground, refused on water and refused next to an
+            // existing one. The refusal matters as much as the placement — without it
+            // a held drag would stack a house on every cell it crossed.
+            // Aimed at a cell known to be dry and clear, not at screen centre: the
+            // middle of the coastal map is the river mouth, so the first version of
+            // this test was clicking on water and reading a correct refusal as a
+            // failure.
+            var spot = centre;
+            for (int gy = 6; gy < FloodSim.H - 6 && spot == centre; gy += 2)
+                for (int gx = 6; gx < FloodSim.W - 6; gx += 2)
+                {
+                    if (world.Sim.Elev[gy * FloodSim.W + gx] <= FloodSim.SeaLevel + 0.4f) continue;
+                    bool crowded = false;
+                    foreach (var h in world.Houses)
+                        if (Mathf.Sqrt((h.X - gx) * (h.X - gx) + (h.Y - gy) * (h.Y - gy)) < 3f) { crowded = true; break; }
+                    if (crowded) continue;
+                    var wp = new Vector3(gx - FloodSim.W / 2f + 0.5f,
+                                         world.Sim.Elev[gy * FloodSim.W + gx],
+                                         -(gy - FloodSim.H / 2f + 0.5f));
+                    var sp = paint.cam.WorldToScreenPoint(wp);
+                    if (sp.z <= 0 || sp.x < 0 || sp.x >= Screen.width || sp.y < 0 || sp.y >= Screen.height) continue;
+                    spot = new Vector2(sp.x, sp.y);
+                    break;
+                }
+            _log.AppendLine($"DIAG  house target screen={spot}");
+
+            int homesBefore = world.Houses.Count;
+            paint.brush = PaintController.Brush.House;
+            yield return MoveMouse(spot, false);
+            yield return null;
+            yield return MoveMouse(spot, true);
+            for (int i = 0; i < 8; i++) yield return null;
+            yield return MoveMouse(spot, false);
+            for (int i = 0; i < 3; i++) yield return null;
+            Check("house tool builds", world.Houses.Count > homesBefore,
+                  $"{homesBefore} -> {world.Houses.Count}");
+            Check("house tool refuses to crowd", world.Houses.Count == homesBefore + 1,
+                  $"{world.Houses.Count - homesBefore} placed in one hold");
+
             paint.brush = PaintController.Brush.None;
+
+            // Captured here rather than at the start or the end: this is the one frame
+            // that shows what the brushes actually did. At the start nothing had been
+            // touched, and by the end the preset switch has thrown it all away.
+            ScreenCapture.CaptureScreenshot(Arg("-shot", "player.png"));
+            for (int i = 0; i < 4; i++) yield return null;
 
             // ── The interface ────────────────────────────────────────────────
             var buttons = ui.Canvas.GetComponentsInChildren<Button>(true);

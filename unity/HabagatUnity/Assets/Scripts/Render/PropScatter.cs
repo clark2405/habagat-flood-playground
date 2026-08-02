@@ -105,10 +105,17 @@ namespace Habagat.Render
                           Quaternion.Euler(0f, -p.Yaw * Mathf.Rad2Deg, 0f),
                           new Vector3(p.S, p.S, p.S));
 
-        public static List<PropBatch> Build(FloodSim sim, PresetType type)
+        /// <summary>
+        /// <paramref name="houses"/> defaults to the preset's own barangay. Passing a
+        /// longer list — because the player has placed one — deliberately shifts the
+        /// RNG stream: the yard loop draws per house, so everything after it moves,
+        /// and the boats end up somewhere new. The reference behaves identically,
+        /// which is why placing one house there "re-runs the whole scene effect".
+        /// </summary>
+        public static List<PropBatch> Build(FloodSim sim, PresetType type, House[] houses = null)
         {
             var elev = sim.Elev;
-            var houses = Barangay.For(type);
+            houses ??= Barangay.For(type);
             var batches = new List<PropBatch>();
 
             // Seeded on the preset name exactly as the web build is, so both
