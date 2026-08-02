@@ -178,7 +178,8 @@ Note: no `-nographics` — it needs a real graphics device. `-view top` gives a 
 view, which is the only framing that makes an orientation mismatch unambiguous.
 `-focus x,z -dist d` frames a close-up on any world position — use it instead of
 reasoning about what a small smudge in the wide shot must be. `-props 0` renders
-bare landform.
+bare landform. `-view sun` points at the sun disc, which sits ~60° off every normal
+framing (in the reference too) and so cannot be confirmed any other way.
 
 ## The C# simulation port
 
