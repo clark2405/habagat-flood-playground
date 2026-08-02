@@ -131,7 +131,7 @@ namespace Habagat.Render
 
                         double height = (cfg.HeightLo + rnd.Next() * (cfg.HeightHi - cfg.HeightLo)) * lay.Hs;
                         double widthM = 40 + rnd.Next() * 34;
-                        b.Add(Prim.Cone((float)widthM, (float)height, 5), Color.white,
+                        b.Add(Prim.Flat(Prim.Cone((float)widthM, (float)height, 5)), Color.white,
                               new Vector3((float)mtx, (float)(height / 2 - 8), (float)mtz));
                         any = true;
 
@@ -142,7 +142,7 @@ namespace Habagat.Render
                         {
                             double sh = height * (0.45 + rnd.Next() * 0.3);
                             double off = widthM * (0.55 + rnd.Next() * 0.4) * (rnd.Next() > 0.5 ? 1 : -1);
-                            b.Add(Prim.Cone((float)(widthM * 0.7), (float)sh, 5), Color.white,
+                            b.Add(Prim.Flat(Prim.Cone((float)(widthM * 0.7), (float)sh, 5)), Color.white,
                                   new Vector3((float)(mtx + System.Math.Cos(angle + Mathf.PI / 2) * off),
                                               (float)(sh / 2 - 8),
                                               (float)(mtz + System.Math.Sin(angle + Mathf.PI / 2) * off)));

@@ -158,6 +158,32 @@ namespace Habagat.Render
             return Pack(v, n, t);
         }
 
+        /// <summary>
+        /// Unshare every vertex and give each triangle a single face normal — the
+        /// equivalent of three.js's <c>flatShading: true</c>.
+        ///
+        /// <see cref="Cylinder"/> deliberately smooths its side normals so a 5-sided
+        /// banana trunk does not read as a faceted crystal. A distant mountain wants
+        /// the opposite: visible facets are what make a low-poly ridge read as rock
+        /// rather than as a smooth cone.
+        /// </summary>
+        public static MeshData Flat(MeshData m)
+        {
+            int n = m.Tris.Length;
+            var v = new Vector3[n];
+            var nr = new Vector3[n];
+            var t = new int[n];
+            for (int i = 0; i < n; i += 3)
+            {
+                Vector3 a = m.Verts[m.Tris[i]], b = m.Verts[m.Tris[i + 1]], c = m.Verts[m.Tris[i + 2]];
+                var face = Vector3.Cross(b - a, c - a).normalized;
+                v[i] = a; v[i + 1] = b; v[i + 2] = c;
+                nr[i] = face; nr[i + 1] = face; nr[i + 2] = face;
+                t[i] = i; t[i + 1] = i + 1; t[i + 2] = i + 2;
+            }
+            return new MeshData { Verts = v, Normals = nr, Tris = t };
+        }
+
         // ── Sphere ───────────────────────────────────────────────────────────
         /// <summary>
         /// THREE.SphereGeometry(radius, widthSegments, heightSegments). Used for the

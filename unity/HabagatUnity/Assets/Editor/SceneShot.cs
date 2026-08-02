@@ -134,6 +134,12 @@ namespace HabagatEditor
                         cam.transform.position = new Vector3(0, 460, 0);
                         cam.transform.rotation = Quaternion.Euler(90, 0, 0);
                         break;
+                    case "sun":
+                        // The sun sits ~60 degrees off the default framing — in the
+                        // reference too — so no normal view can confirm it is there.
+                        cam.transform.position = new Vector3(40, 60, -40);
+                        cam.transform.LookAt(new Vector3(150, 200, 170));
+                        break;
                     case "far":
                         cam.transform.position = new Vector3(150, 120, -150);
                         cam.transform.LookAt(Vector3.zero);

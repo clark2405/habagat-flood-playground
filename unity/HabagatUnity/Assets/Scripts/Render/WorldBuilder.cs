@@ -25,6 +25,9 @@ namespace Habagat.Render
 
         public SkyDome Sky { get; private set; }
 
+        /// <summary>The sun disc, hidden on overcast presets and during storms.</summary>
+        public GameObject SunDisc { get; private set; }
+
         /// <summary>Backdrop layers, re-hazed toward the live sky colour each frame.</summary>
         public System.Collections.Generic.List<Backdrop.LayerMat> BackdropLayers { get; private set; }
 
@@ -125,6 +128,22 @@ namespace Habagat.Render
 
             Sky = new SkyDome(Root.transform);
             Sky.Paint(Hex(Env.Fog), Hex(Env.Mid), Hex(Env.Zenith));
+
+            // A glowing disc, unlit and unfogged so it stays the same colour however
+            // thick the haze gets — it is meant to read as the light source, not as
+            // an object sitting in the weather. Z mirrored from the reference's
+            // (150, 200, -170) like everything else placed in world space.
+            var sunMesh = new Mesh { name = "SunDisc" };
+            var sunData = Prim.Sphere(9f, 16, 16);
+            sunMesh.SetVertices(sunData.Verts);
+            sunMesh.SetNormals(sunData.Normals);
+            sunMesh.SetTriangles(sunData.Tris, 0);
+            var sunMat = new Material(Shader.Find("Habagat/RainLine"));
+            sunMat.SetColor("_Color", Hex(0xffd166));
+            sunMat.SetFloat("_Opacity", 1f);
+            SunDisc = Child("SunDisc", sunMesh, sunMat, false, false);
+            SunDisc.transform.position = new Vector3(150, 200, 170);
+            SunDisc.SetActive(Env.Sun);
 
             // Silhouettes on the horizon. Flat-lit through the same ground shader,
             // with white vertex colours so the material tint carries the haze.

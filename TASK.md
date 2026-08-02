@@ -25,6 +25,7 @@ hazards that have already cost time.
 
 **No features are missing against the web build.** What is left is polish.
 - Ambient occlusion, tuned to this world's scale
+- Sun disc, and flat-shaded backdrop mountains
 
 **The port is feature-complete against the web build.** What follows is polish and
 the gaps listed below.
@@ -34,11 +35,6 @@ the gaps listed below.
 ## What is left
 
 ### Loose ends
-- **The sun disc** (a glowing sphere, hidden on overcast presets via `EnvConfig.Sun`)
-  is not built yet. The flag is already carried across.
-- **Backdrop silhouettes are smooth-shaded**, where the reference sets
-  `flatShading: true`. At 34-78% haze the difference is barely visible, which is why
-  it was left; `Prim.Cone` would need a flat-normal variant to match exactly.
 - **A human still has not clicked anything.** `Habagat.exe -selftest` drives
   synthetic mouse events through the real input path and checks 17 behaviours, but
   it proves the paths execute and change what they should — not that the result

@@ -98,6 +98,13 @@ namespace Habagat.Render
             RenderSettings.fogEndDistance = Mathf.Lerp(RenderSettings.fogEndDistance,
                 storm ? EnvConfig.StormFogFar : env.FogFar, 0.05f);
 
+            // The sun goes behind the weather rather than dimming: a visible disc in
+            // an overcast sky is the one thing that would give away that the storm is
+            // a colour override rather than actual cloud.
+            bool sunUp = world.Env.Sun && !storm;
+            if (world.SunDisc != null && world.SunDisc.activeSelf != sunUp)
+                world.SunDisc.SetActive(sunUp);
+
             // Sheet lightning. A flash is a jump, not a lerp — that asymmetry between
             // the instant spike and the slow decay is what makes it read as lightning
             // rather than as a flicker.
