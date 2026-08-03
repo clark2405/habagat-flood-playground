@@ -26,6 +26,7 @@ hazards that have already cost time.
 **No features are missing against the web build.** What is left is polish.
 - Ambient occlusion, tuned to this world's scale
 - Sun disc, and flat-shaded backdrop mountains
+- Tool icons, drawn procedurally like everything else here
 
 **The port is feature-complete against the web build.** What follows is polish and
 the gaps listed below.
@@ -39,8 +40,6 @@ the gaps listed below.
   synthetic mouse events through the real input path and checks 17 behaviours, but
   it proves the paths execute and change what they should — not that the result
   feels right. Camera feel, brush responsiveness and UI scale are unjudged.
-- **UI has no icons.** The reference pairs every button with a small glyph; these
-  are text-only. Rounded corners and hover states are done.
 - **No sound.** The reference plays a cue per tool.
 - **Performance** in a real build: ~390 fps calm, ~175 fps storm at 1280×720,
   measured with nothing else running. An earlier 150/142 reading was taken with the
