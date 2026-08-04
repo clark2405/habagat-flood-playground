@@ -28,6 +28,9 @@ namespace HabagatEditor
             var worldGo = new GameObject("World");
             worldGo.AddComponent<HabagatWorld>();
             var paint = worldGo.AddComponent<PaintController>();
+            // Before the UI, so HabagatUI.Build finds it — GetComponent runs at Build
+            // time, and a component added afterwards would leave every button silent.
+            worldGo.AddComponent<Habagat.Audio.SoundEngine>();
             worldGo.AddComponent<HabagatUI>();
             // Inert unless the player is launched with -selftest.
             worldGo.AddComponent<SelfTest>();
@@ -46,6 +49,12 @@ namespace HabagatEditor
 
             var camData = camGo.AddComponent<UniversalAdditionalCameraData>();
             camData.renderPostProcessing = true;
+
+            // A camera built with AddComponent does not get the AudioListener that the
+            // editor's default camera object ships with, and without one the whole
+            // sound layer runs correctly and inaudibly. SoundEngine adds a fallback if
+            // this is ever missing; it belongs on the camera, which is the ear.
+            camGo.AddComponent<AudioListener>();
 
             var orbit = camGo.AddComponent<OrbitCamera>();
             // Set explicitly, not left to the field initialiser. These are SERIALIZED

@@ -71,6 +71,8 @@
     <Compile Include="Assets\Scripts\Sim\TerrainPresets.cs" />
     <Compile Include="Assets\Scripts\Render\WaterMeshBuilder.cs" />
     <Compile Include="Assets\Scripts\Sim\TerrainColors.cs" />
+    <Compile Include="Assets\Scripts\Audio\Synth.cs" />
+    <Compile Include="Assets\Scripts\Audio\SoundEngine.cs" />
     <Compile Include="Assets\Scripts\Render\RainSystem.cs" />
     <Compile Include="Assets\Scripts\Render\WorldBuilder.cs" />
     <Compile Include="Assets\Scripts\Render\PropLibrary.cs" />

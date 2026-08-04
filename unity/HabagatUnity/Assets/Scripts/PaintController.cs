@@ -1,3 +1,4 @@
+using Habagat.Audio;
 using Habagat.Render;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -28,11 +29,15 @@ namespace Habagat
         public OrbitCamera orbit;
 
         private HabagatWorld _world;
+        private SoundEngine _sound;
         private Transform _cursor;
 
         private void Awake()
         {
             _world = GetComponent<HabagatWorld>();
+            // Optional throughout: the screenshot harness adds this component without
+            // a SoundEngine beside it, and a missing cue must not stop the brush.
+            _sound = GetComponent<SoundEngine>();
             if (cam == null) cam = Camera.main;
             if (orbit == null && cam != null) orbit = cam.GetComponent<OrbitCamera>();
 
@@ -118,9 +123,23 @@ namespace Habagat
             // to be regenerated around them, so this never goes through FloodSim.Paint.
             if (brush == Brush.House)
             {
-                _world.AddHouse(gx, gy);
+                // Only on the ones that actually go up: AddHouse refuses water and
+                // refuses to crowd, and a cue on every refused frame of a held drag
+                // would turn a rejection into a machine-gun.
+                if (_world.AddHouse(gx, gy)) _sound?.PlayBuild();
                 return;
             }
+
+            if (_sound != null)
+                switch (brush)
+                {
+                    case Brush.Raise: _sound.PlayTerraform(true); break;
+                    case Brush.Lower: _sound.PlayTerraform(false); break;
+                    case Brush.Water: _sound.PlayWaterSplash(); break;
+                    case Brush.Mangrove: _sound.PlayPlant(); break;
+                    case Brush.DrainPump: _sound.PlayBuild(); break;
+                    // Clear is silent in the reference too.
+                }
 
             var tool = brush switch
             {

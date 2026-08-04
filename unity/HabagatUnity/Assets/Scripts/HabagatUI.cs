@@ -29,11 +29,13 @@ namespace Habagat
         private HabagatWorld _world;
         private PaintController _paint;
         private OrbitCamera _orbit;
+        private Audio.SoundEngine _sound;
         private Font _font;
 
         private Text _stats;
         private Text _status;
         private Button _pauseBtn;
+        private Button _muteBtn;
         private readonly List<(Button btn, PaintController.Brush brush)> _toolBtns = new();
         private readonly List<(Button btn, PresetType preset)> _presetBtns = new();
 
@@ -55,6 +57,8 @@ namespace Habagat
             _world = GetComponent<HabagatWorld>();
             _paint = GetComponent<PaintController>();
             _orbit = _paint != null ? _paint.orbit : null;
+            // Absent in the screenshot harness, so every use of it is guarded.
+            _sound = GetComponent<Audio.SoundEngine>();
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             BuildLayout();
         }
@@ -105,7 +109,7 @@ namespace Habagat
         }
 
         /// <summary>Which glyph sits to the left of a button's label.</summary>
-        public enum Glyph { None, Move, Peak, Channel, Wave, Tree, Grate, House, Cross }
+        public enum Glyph { None, Move, Peak, Channel, Wave, Tree, Grate, House, Cross, Sound, Mute }
 
         private static readonly Dictionary<Glyph, Sprite> _glyphs = new();
 
@@ -203,6 +207,24 @@ namespace Habagat
                 case Glyph.Cross:
                     return GlyphSeg(p, new Vector2(-0.7f, -0.7f), new Vector2(0.7f, 0.7f), 0.15f)
                         || GlyphSeg(p, new Vector2(-0.7f, 0.7f), new Vector2(0.7f, -0.7f), 0.15f);
+                // A speaker: body, flaring cone, and two arcs for the sound leaving it.
+                // Muted keeps the same speaker and strikes it through, rather than
+                // drawing a different shape — the pair has to read as one control in
+                // two states, not as two unrelated buttons.
+                case Glyph.Sound:
+                case Glyph.Mute:
+                {
+                    bool body = GlyphBox(p, -0.62f, 0f, 0.2f, 0.28f)
+                             || GlyphTri(p, new Vector2(-0.42f, 0f),
+                                            new Vector2(-0.02f, 0.72f),
+                                            new Vector2(-0.02f, -0.72f));
+                    if (g == Glyph.Mute)
+                        return body || GlyphSeg(p, new Vector2(-0.8f, -0.8f), new Vector2(0.8f, 0.8f), 0.13f);
+                    float r = (p - new Vector2(-0.02f, 0f)).magnitude;
+                    return body
+                        || (p.x > 0.16f && r > 0.42f && r < 0.58f)
+                        || (p.x > 0.32f && r > 0.74f && r < 0.9f);
+                }
                 default:
                     return false;
             }
@@ -256,8 +278,14 @@ namespace Habagat
             return t;
         }
 
+        /// <summary>
+        /// <paramref name="clickHz"/> is the pitch of the blip this button makes. The
+        /// reference gives each group its own — presets 400, camera 500, tools 480,
+        /// controls 350 — so the interface has a little tonal map of itself, and a
+        /// misrouted click is audible before it is visible.
+        /// </summary>
         private Button Pill(Transform parent, string text, System.Action onClick, float width = 150f,
-                            Glyph glyph = Glyph.None)
+                            Glyph glyph = Glyph.None, float clickHz = 0f)
         {
             // Colour lives in the Button's ColorBlock, not on the Image: the Button
             // drives targetGraphic.color on every state change, so anything written
@@ -296,8 +324,19 @@ namespace Habagat
                 lr.offsetMin = new Vector2(30f, 0f);
             }
 
-            btn.onClick.AddListener(() => onClick());
+            btn.onClick.AddListener(() =>
+            {
+                if (clickHz > 0f) _sound?.PlayPop(clickHz);
+                onClick();
+            });
             return btn;
+        }
+
+        /// <summary>Swap a button's icon, for the controls that have two states.</summary>
+        private static void SetGlyph(Button b, Glyph g)
+        {
+            var ico = b.transform.Find("Icon");
+            if (ico != null) ico.GetComponent<Image>().sprite = GlyphSprite(g);
         }
 
         private static void Tint(Button b, bool active)
@@ -380,11 +419,12 @@ namespace Habagat
                 ("Coastal", PresetType.Coastal), ("River Valley", PresetType.River),
                 ("Urban", PresetType.Urban), ("Typhoon Island", PresetType.Island),
             })
-                _presetBtns.Add((Pill(topBar.transform, name, () => SwitchPreset(preset), 150), preset));
+                _presetBtns.Add((Pill(topBar.transform, name, () => SwitchPreset(preset), 150,
+                                      Glyph.None, 400f), preset));
 
-            Pill(topBar.transform, "Iso", () => SetView(135f, 48f, 92f), 80);
-            Pill(topBar.transform, "Top", () => SetView(135f, 13f, 100f), 80);
-            Pill(topBar.transform, "Cozy", () => SetView(120f, 62f, 46f), 90);
+            Pill(topBar.transform, "Iso", () => SetView(135f, 48f, 92f), 80, Glyph.None, 500f);
+            Pill(topBar.transform, "Top", () => SetView(135f, 13f, 100f), 80, Glyph.None, 500f);
+            Pill(topBar.transform, "Cozy", () => SetView(120f, 62f, 46f), 90, Glyph.None, 500f);
 
             // Everything else stacks at the bottom centre.
             var bottom = Node("Bottom", root);
@@ -417,13 +457,17 @@ namespace Habagat
                 ("Clear", PaintController.Brush.Clear, Glyph.Cross),
             })
                 _toolBtns.Add((Pill(toolBar.transform, name,
-                    () => { if (_paint != null) _paint.brush = brush; }, 158, glyph), brush));
+                    () => { if (_paint != null) _paint.brush = brush; }, 158, glyph, 480f), brush));
 
             var ctrlBar = Bar("Controls", bottom.transform, 14f);
-            var stormBtn = Pill(ctrlBar.transform, "SUMMON HABAGAT STORM", ToggleStorm, 300);
+            var stormBtn = Pill(ctrlBar.transform, "SUMMON HABAGAT STORM", ToggleStorm, 300, Glyph.None, 350f);
             stormBtn.colors = Colors(Accent);
             stormBtn.GetComponentInChildren<Text>().color = Color.white;
-            _pauseBtn = Pill(ctrlBar.transform, "Pause Sim", TogglePause, 130);
+            _pauseBtn = Pill(ctrlBar.transform, "Pause Sim", TogglePause, 130, Glyph.None, 350f);
+            // No click pitch of its own: the blip it would make is the very thing it
+            // is being pressed to stop, and on the way back it is drowned by the pop
+            // the un-muting already plays.
+            _muteBtn = Pill(ctrlBar.transform, "Sound On", ToggleMute, 150, Glyph.Sound);
 
             var rainLabel = Label("RainLabel", ctrlBar.transform, "Rain", 18, Ink);
             var rle = rainLabel.gameObject.AddComponent<LayoutElement>();
@@ -466,7 +510,21 @@ namespace Habagat
             _orbit.yaw = yaw; _orbit.pitch = pitch; _orbit.distance = dist;
         }
 
-        private void ToggleStorm() => _world.storm = !_world.storm;
+        private void ToggleStorm()
+        {
+            _world.storm = !_world.storm;
+            _sound?.SetStorm(_world.storm);
+        }
+
+        private void ToggleMute()
+        {
+            if (_sound == null) return;
+            bool muted = _sound.ToggleMute();
+            _muteBtn.GetComponentInChildren<Text>().text = muted ? "Sound Off" : "Sound On";
+            SetGlyph(_muteBtn, muted ? Glyph.Mute : Glyph.Sound);
+            // Confirms it came back — the only feedback that proves audio is alive.
+            if (!muted) _sound.PlayPop(350f);
+        }
 
         private void TogglePause()
         {
