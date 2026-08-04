@@ -22,6 +22,8 @@ hazards that have already cost time.
   terrain and painted props rebuilt as needed
 - UI: presets, camera views, tool palette, stats, storm, pause, rain slider
 - All eight brushes, including Barangay Home
+- Sound: every cue in `src/audio.js`, synthesised sample by sample rather than
+  imported, plus the looping rain bed and a mute button
 
 **No features are missing against the web build.** What is left is polish.
 - Ambient occlusion, tuned to this world's scale
@@ -37,10 +39,18 @@ the gaps listed below.
 
 ### Loose ends
 - **A human still has not clicked anything.** `Habagat.exe -selftest` drives
-  synthetic mouse events through the real input path and checks 17 behaviours, but
+  synthetic mouse events through the real input path and checks 27 behaviours, but
   it proves the paths execute and change what they should — not that the result
   feels right. Camera feel, brush responsiveness and UI scale are unjudged.
-- **No sound.** The reference plays a cue per tool.
+- **Nobody has heard the sound either.** The self-test proves the clips are
+  generated, carry signal, do not clip and fade correctly; it cannot tell you
+  whether they are pleasant or whether the mix is balanced. Two knowingly open
+  questions for the first person to listen: `SoundEngine.masterVolume` (2.2, a
+  guess — the reference's gains were picked against a browser's output stage), and
+  the splash, whose bandpass leaves it at a sixth of a pop's amplitude.
+- **The next real milestone is the Android build**, which was the reason for the
+  port. Touch has no hover state, so `PaintController`'s cursor ring needs
+  rethinking; UI scale on a phone is untested; `Mobile_Renderer` has no SSAO.
 - **Performance** in a real build: ~390 fps calm, ~175 fps storm at 1280×720,
   measured with nothing else running. An earlier 150/142 reading was taken with the
   editor open and is not a usable baseline. `-bench N` in the editor harness still reports the per-frame work in

@@ -78,6 +78,47 @@ namespace Habagat
             Check("mouse device", Mouse.current != null);
             Check("UI canvas built", ui != null && ui.Canvas != null);
 
+            // ── Sound ────────────────────────────────────────────────────────
+            // Whether the cues sound good is not checkable here. What is checkable is
+            // that they were generated at all, that they contain signal rather than
+            // silence, and that nothing clips — a synthesis bug shows up as one of
+            // those three long before anybody notices it by ear.
+            var sound = GetComponent<Audio.SoundEngine>();
+            Check("sound engine present", sound != null);
+            Check("audio listener present", FindFirstObjectByType<AudioListener>() != null);
+            if (sound != null)
+            {
+                var rain = sound.RainClip;
+                Check("rain loop baked", rain != null && rain.samples > 1000,
+                      rain == null ? "null" : $"{rain.samples} samples @ {rain.frequency} Hz");
+                if (rain != null)
+                {
+                    var data = new float[rain.samples];
+                    rain.GetData(data, 0);
+                    float peak = 0f, energy = 0f;
+                    foreach (var v in data) { peak = Mathf.Max(peak, Mathf.Abs(v)); energy += v * v; }
+                    float rms = Mathf.Sqrt(energy / data.Length);
+                    Check("rain loop carries signal", rms > 0.01f, $"rms {rms:F4}");
+                    // Over 1.0 wraps to a crackle on some backends and is clamped on
+                    // others, so it is never merely "a bit loud".
+                    Check("rain loop does not clip", peak <= 1f, $"peak {peak:F3}");
+                }
+                Check("cue plays without error", PlaysCleanly(sound));
+                // Waited in seconds, not frames: the fade is an exponential approach
+                // with a 0.5 s time constant and is frame-rate independent by design,
+                // so a fixed frame count measures a different point on the curve on
+                // every machine. Counting frames here first read 0.064 after 90 of
+                // them at 409 fps — which is the correct value at t=0.22 s, not a bug.
+                sound.SetStorm(true);
+                yield return Settle(1.6f);
+                Check("storm brings up the rain bed", sound.RainSource.volume > 0.02f,
+                      $"volume {sound.RainSource.volume:F3}");
+                sound.SetStorm(false);
+                yield return Settle(1.6f);
+                Check("calm takes it back down", sound.RainSource.volume < 0.02f,
+                      $"volume {sound.RainSource.volume:F3}");
+            }
+
             // ── Frame rate, calm then storm ──────────────────────────────────
             yield return Measure(world, "calm", storm: false, rain: 0f);
             yield return Measure(world, "storm", storm: true, rain: 10f);
@@ -230,6 +271,33 @@ namespace Habagat
 
             yield return null;
             Application.Quit(_fail == 0 ? 0 : 1);
+        }
+
+        /// <summary>
+        /// The pop cues are baked on demand rather than up front, so this is the only
+        /// check that the on-demand path runs at all — under a headless or device-less
+        /// player it is also where a missing audio backend would surface.
+        /// </summary>
+        private static bool PlaysCleanly(Audio.SoundEngine sound)
+        {
+            try
+            {
+                sound.PlayPop(440f);
+                sound.PlayTerraform(true);
+                sound.PlayWaterSplash();
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+                return false;
+            }
+        }
+
+        /// <summary>Let real time pass, for anything that eases rather than snapping.</summary>
+        private static IEnumerator Settle(float seconds)
+        {
+            for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime) yield return null;
         }
 
         private static Button FindButton(Button[] all, string label)

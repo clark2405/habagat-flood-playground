@@ -21,9 +21,15 @@ Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
 | `HabagatEditor.BuildPlayer.Run` | standalone player, `-buildOut <dir>` |
 | `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity |
 
-Then `Habagat.exe -selftest -report r.txt` runs 17 checks against the built player
-— brush, buttons, preset switching, frame rate — and exits non-zero on failure.
-It is the only check that covers anything a still frame cannot show.
+Then `Habagat.exe -selftest -report r.txt` runs 27 checks against the built player
+— brush, buttons, preset switching, frame rate, sound — and exits non-zero on
+failure. It is the only check that covers anything a still frame cannot show.
+
+Anything that eases rather than snaps must be waited out **in seconds, not
+frames**. The rain fade is an exponential approach with a 0.5 s time constant, so
+a fixed frame count lands on a different point of the curve on every machine: 90
+frames read 0.064 at 409 fps, which is the right answer for t=0.22 s and looks
+exactly like a broken fade.
 
 There is no test suite. Verification is done by (a) driving headless Chromium and
 looking at screenshots, and (b) the C# fingerprint diff.
@@ -97,6 +103,11 @@ number written down on another day.
   horizon search passes straight through props 2–4 units deep and the AO buffer
   comes back blank regardless of radius or blend intensity. It is set to match the
   geometry depth.
+- **A camera built in code has no ears.** `new GameObject` + `AddComponent<Camera>()`
+  does not bring the `AudioListener` that the editor's default camera object ships
+  with, and without one every cue plays correctly and inaudibly — there is no
+  warning, because nothing is wrong. `MakeScene` adds one to the camera and
+  `SoundEngine.Awake` adds a fallback if it finds none.
 - The fog `near` must sit inside the visible frame (72–100u), or the mid-ground
   renders as flat cardboard.
 - Vite's HMR error overlay persists over the canvas after a failed build — force a
@@ -156,6 +167,16 @@ holds the creators and `PropScatter`/`WorldDress` the placement. The placement R
 (`JsMath.Rng`, mulberry32) is bit-exact with the browser's, so the *order and count*
 of draws inside a creator is load-bearing — an extra `Next()` shifts every prop
 placed after it.
+
+**Sound is synthesised, not imported.** `Assets/Scripts/Audio/Synth.cs` generates
+PCM — band-limited oscillators, RBJ biquads, exponential envelopes — and
+`SoundEngine` bakes each cue into an `AudioClip` once at `Awake`. Two things carry
+real cost if changed casually: waveforms are summed from harmonics because a naive
+square or saw aliases badly on the low sweeps used here, and the rain loop is
+filtered over its buffer **twice** so the biquad's state matches at the wrap
+(single-pass leaves a tick every two seconds). The reference fires a cue from
+inside the per-cell paint loop — up to 29 voices per call; that is throttled to one
+per 90 ms here, which is the one deliberate divergence.
 
 **There is a runtime scene now**: `Assets/Scenes/Habagat.unity`, built from code by
 `Habagat/Rebuild Play Scene`. `HabagatWorld` owns the sim and ticks it; `WorldBuilder`
