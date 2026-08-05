@@ -7,6 +7,10 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.UI;
+// UnityEngine has a TouchPhase of its own, left over from the legacy input class.
+// This project is Input System only, so the ambiguity is resolved once here rather
+// than by qualifying every call site.
+using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
 namespace Habagat
 {
@@ -215,6 +219,58 @@ namespace Habagat
             Check("house tool refuses to crowd", world.Houses.Count == homesBefore + 1,
                   $"{world.Houses.Count - homesBefore} placed in one hold");
 
+            // ── Touch ────────────────────────────────────────────────────────
+            // A desktop player has no touchscreen, so one is added for the duration.
+            // That is not a shortcut around the real path: PaintController reads
+            // Touchscreen.current like any other device, and a synthesised device is
+            // the same object a phone's driver would produce.
+            var screen = InputSystem.AddDevice<Touchscreen>();
+            yield return null;
+
+            var touchBefore = (float[])elev.Clone();
+            paint.brush = PaintController.Brush.Raise;
+            Finger(screen, 1, centre, TouchPhase.Began);
+            yield return Step(8);
+            Finger(screen, 1, centre, TouchPhase.Ended);
+            yield return Step(3);
+
+            int touched = 0;
+            for (int i = 0; i < elev.Length; i++)
+                if (Math.Abs(elev[i] - touchBefore[i]) > 1e-6f) touched++;
+            Check("brush paints under a finger", touched > 0, $"{touched} cells changed");
+
+            // Two fingers is the camera's gesture. If the brush still stamped, every
+            // attempt to pan or pinch would gouge the map on the way past. Both go down
+            // in the same frame — see Step — or the gap between them is a legitimate
+            // one-finger stroke and the check measures nothing.
+            var pinchBefore = (float[])elev.Clone();
+            Finger(screen, 1, centre + new Vector2(-60f, 0f), TouchPhase.Began);
+            Finger(screen, 2, centre + new Vector2(60f, 0f), TouchPhase.Began);
+            yield return Step(8);
+            int gouged = 0;
+            for (int i = 0; i < elev.Length; i++)
+                if (Math.Abs(elev[i] - pinchBefore[i]) > 1e-6f) gouged++;
+            Check("two fingers do not paint", gouged == 0, $"{gouged} cells changed");
+
+            // And the camera has to actually respond to them, or the tool palette is
+            // the only thing on a phone that does anything.
+            float distBefore = paint.orbit != null ? paint.orbit.distance : 0f;
+            for (int step = 1; step <= 6; step++)
+            {
+                Finger(screen, 1, centre + new Vector2(-60f - step * 12f, 0f), TouchPhase.Moved);
+                Finger(screen, 2, centre + new Vector2(60f + step * 12f, 0f), TouchPhase.Moved);
+                yield return Step();
+            }
+            Check("pinch changes the camera distance",
+                  paint.orbit != null && Mathf.Abs(paint.orbit.distance - distBefore) > 0.5f,
+                  $"{distBefore:F1} -> {(paint.orbit != null ? paint.orbit.distance : 0f):F1}");
+
+            Finger(screen, 1, centre, TouchPhase.Ended);
+            Finger(screen, 2, centre, TouchPhase.Ended);
+            yield return Step();
+            InputSystem.RemoveDevice(screen);
+            yield return null;
+
             paint.brush = PaintController.Brush.None;
 
             // Captured here rather than at the start or the end: this is the one frame
@@ -226,6 +282,34 @@ namespace Habagat
             // ── The interface ────────────────────────────────────────────────
             var buttons = ui.Canvas.GetComponentsInChildren<Button>(true);
             Check("UI has buttons", buttons.Length >= 12, $"{buttons.Length} found");
+
+            // A press that lands on the palette must not also stamp the ground behind
+            // it. Worth its own check because the guard is now asked about a specific
+            // pointer id rather than "the last pointer uGUI saw" — a change made for
+            // touch, which could quietly have stopped covering the mouse.
+            var overBtn = FindButton(buttons, "Clear");
+            if (overBtn != null)
+            {
+                var onUI = (Vector2)overBtn.GetComponent<RectTransform>().position;
+                var uiBefore = (float[])world.Sim.Elev.Clone();
+                paint.brush = PaintController.Brush.Raise;
+                yield return MoveMouse(onUI, false);
+                yield return MoveMouse(onUI, true);
+                for (int i = 0; i < 8; i++) yield return null;
+                yield return MoveMouse(onUI, false);
+                paint.brush = PaintController.Brush.None;
+
+                int leaked = 0;
+                for (int i = 0; i < uiBefore.Length; i++)
+                    if (Math.Abs(world.Sim.Elev[i] - uiBefore[i]) > 1e-6f) leaked++;
+
+                // Without this the check is a tautology: a button floating over empty
+                // sky would report a clean pass while proving only that the ray missed.
+                bool groundBehind = Physics.Raycast(paint.cam.ScreenPointToRay(onUI), out _, 2000f);
+                Check("terrain lies behind the tested button", groundBehind, $"at {onUI}");
+                Check("brush does not paint through the UI", leaked == 0,
+                      $"{leaked} cells changed at {onUI}");
+            }
 
             bool ranBefore = world.running;
             var pause = FindButton(buttons, "Pause Sim");
@@ -292,6 +376,46 @@ namespace Habagat
                 Debug.LogError(e);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Push one finger's state through the Input System.
+        ///
+        /// <c>delta</c> is supplied rather than left to the device to work out: the
+        /// touch delta is normally computed from the previous frame's position by the
+        /// backend that owns the hardware, and a synthesised device has none, so the
+        /// pinch and orbit gestures would read every move as zero movement.
+        /// </summary>
+        private void Finger(Touchscreen screen, int id, Vector2 pos, TouchPhase phase)
+        {
+            _fingerAt.TryGetValue(id, out var last);
+            var state = new TouchState
+            {
+                touchId = id,
+                phase = phase,
+                position = pos,
+                delta = phase == TouchPhase.Began ? Vector2.zero : pos - last,
+            };
+            _fingerAt[id] = pos;
+            if (phase == TouchPhase.Ended) _fingerAt.Remove(id);
+
+            InputSystem.QueueStateEvent(screen, state);
+        }
+
+        private readonly Dictionary<int, Vector2> _fingerAt = new();
+
+        /// <summary>
+        /// Flush queued touches and let one frame run.
+        ///
+        /// Separate from <see cref="Finger"/> so a two-finger gesture can be assembled
+        /// before any frame sees it. Advancing between the two Begans leaves a frame in
+        /// which exactly one finger is down — which is a paint stroke, correctly — and
+        /// the first version of the multi-touch test read that as the guard failing.
+        /// </summary>
+        private static IEnumerator Step(int frames = 1)
+        {
+            InputSystem.Update();
+            for (int i = 0; i < frames; i++) yield return null;
         }
 
         /// <summary>Let real time pass, for anything that eases rather than snapping.</summary>

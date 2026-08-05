@@ -60,9 +60,62 @@ namespace Habagat
             _cursor.gameObject.SetActive(false);
         }
 
+        /// <summary>
+        /// Where the player is pointing, from whichever device is actually being used.
+        ///
+        /// Touch wins over the mouse whenever a finger is down, rather than the project
+        /// picking one device at build time: a Windows laptop with a touchscreen has
+        /// both, and the deliberate act is the one being performed right now.
+        ///
+        /// A finger that is not touching the glass has no position at all, so the touch
+        /// branch reports nothing unless one is down. On a phone there is no mouse to
+        /// fall through to and the whole call fails, which is what hides the brush
+        /// ring: parked at the last place tapped it reads as a stuck selection.
+        /// </summary>
+        private readonly struct Pointer
+        {
+            public readonly Vector2 Position;
+            public readonly bool Pressed, Multi;
+            public readonly int Id;
+
+            public Pointer(Vector2 position, bool pressed, bool multi, int id)
+            {
+                Position = position; Pressed = pressed; Multi = multi; Id = id;
+            }
+        }
+
+        /// <summary>uGUI's own id for the left mouse button; touches use their touchId.</summary>
+        private const int MouseLeftPointerId = -1;
+
+        private static bool TryPointer(out Pointer p)
+        {
+            var touch = Touchscreen.current;
+            if (touch != null && touch.primaryTouch.press.isPressed)
+            {
+                // Two fingers is the camera's gesture — pan and pinch — so it must not
+                // also stamp the ground under whichever finger happens to be first.
+                int active = 0;
+                foreach (var t in touch.touches) if (t.press.isPressed) active++;
+
+                p = new Pointer(touch.primaryTouch.position.ReadValue(), true,
+                                active > 1, touch.primaryTouch.touchId.ReadValue());
+                return true;
+            }
+
+            var mouse = Mouse.current;
+            if (mouse != null)
+            {
+                p = new Pointer(mouse.position.ReadValue(), mouse.leftButton.isPressed,
+                                false, MouseLeftPointerId);
+                return true;
+            }
+
+            p = default;
+            return false;
+        }
+
         private void Update()
         {
-            var mouse = Mouse.current;
             var keys = Keyboard.current;
 
             // Number keys also pick a tool, which is handy while testing.
@@ -82,21 +135,24 @@ namespace Habagat
             // them may have it.
             if (orbit != null) orbit.orbitEnabled = brush == Brush.None;
 
-            if (brush == Brush.None || cam == null || mouse == null || _world.World == null)
+            if (brush == Brush.None || cam == null || _world.World == null ||
+                !TryPointer(out var pointer) || pointer.Multi)
             {
                 if (_cursor.gameObject.activeSelf) _cursor.gameObject.SetActive(false);
                 return;
             }
 
             // A drag that starts on the tool palette must not also dig a hole in the
-            // ground behind it.
-            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            // ground behind it. The id matters: the no-argument overload asks about
+            // the last pointer uGUI processed, which on touch is not necessarily the
+            // finger being read here.
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(pointer.Id))
             {
                 if (_cursor.gameObject.activeSelf) _cursor.gameObject.SetActive(false);
                 return;
             }
 
-            var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+            var ray = cam.ScreenPointToRay(pointer.Position);
             if (!Physics.Raycast(ray, out var hit, 2000f))
             {
                 if (_cursor.gameObject.activeSelf) _cursor.gameObject.SetActive(false);
@@ -114,7 +170,7 @@ namespace Habagat
             int gy = Mathf.FloorToInt(-hit.point.z + FloodSim.H / 2f);
             if (gx < 0 || gx >= FloodSim.W || gy < 0 || gy >= FloodSim.H) return;
 
-            if (mouse.leftButton.isPressed) Paint(gx, gy);
+            if (pointer.Pressed) Paint(gx, gy);
         }
 
         private void Paint(int gx, int gy)
