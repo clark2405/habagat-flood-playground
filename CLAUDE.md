@@ -21,9 +21,17 @@ Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
 | `HabagatEditor.BuildPlayer.Run` | standalone player, `-buildOut <dir>` |
 | `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity |
 
-Then `Habagat.exe -selftest -report r.txt` runs 27 checks against the built player
-— brush, buttons, preset switching, frame rate, sound — and exits non-zero on
-failure. It is the only check that covers anything a still frame cannot show.
+Then `Habagat.exe -selftest -report r.txt` runs 32 checks against the built player
+— brush, buttons, preset switching, frame rate, sound, touch — and exits non-zero
+on failure. It is the only check that covers anything a still frame cannot show.
+
+Input is synthesised through the Input System's own event queue, including a
+`Touchscreen` added at runtime, so the raycasts and grid mapping run exactly as
+they do for real hardware. Two traps in writing those: queue a multi-finger
+gesture **fully before advancing a frame**, or the gap between the two presses is
+a legitimate one-finger stroke that will paint; and a synthesised touch has no
+backend to compute `delta`, so it must be supplied or every gesture reads as
+zero movement.
 
 Anything that eases rather than snaps must be waited out **in seconds, not
 frames**. The rain fade is an exponential approach with a 0.5 s time constant, so
@@ -103,6 +111,12 @@ number written down on another day.
   horizon search passes straight through props 2–4 units deep and the AO buffer
   comes back blank regardless of radius or blend intensity. It is set to match the
   geometry depth.
+- **Touch and mouse coexist.** A Windows laptop reports both devices, so anything
+  reading input must take one gesture per frame, not add them together — the
+  camera's `TouchUpdate` returns whether it consumed the frame for exactly that
+  reason. Touch deltas are also normalised against screen height rather than used
+  as raw pixels, or the same swipe means very different things on a 1080p monitor
+  and a dense phone panel.
 - **A camera built in code has no ears.** `new GameObject` + `AddComponent<Camera>()`
   does not bring the `AudioListener` that the editor's default camera object ships
   with, and without one every cue plays correctly and inaudibly — there is no

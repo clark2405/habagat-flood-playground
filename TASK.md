@@ -24,6 +24,8 @@ hazards that have already cost time.
 - All eight brushes, including Barangay Home
 - Sound: every cue in `src/audio.js`, synthesised sample by sample rather than
   imported, plus the looping rain bed and a mute button
+- Touch input: one finger paints or orbits, two pan and pinch, and the brush stands
+  down for the second finger. Driven in the self-test by a synthesised `Touchscreen`
 
 **No features are missing against the web build.** What is left is polish.
 - Ambient occlusion, tuned to this world's scale
@@ -39,7 +41,8 @@ the gaps listed below.
 
 ### Loose ends
 - **A human still has not clicked anything.** `Habagat.exe -selftest` drives
-  synthetic mouse events through the real input path and checks 27 behaviours, but
+  synthetic mouse and touch events through the real input path and checks 32
+  behaviours, but
   it proves the paths execute and change what they should — not that the result
   feels right. Camera feel, brush responsiveness and UI scale are unjudged.
 - **Nobody has heard the sound either.** The self-test proves the clips are
@@ -49,8 +52,19 @@ the gaps listed below.
   guess — the reference's gains were picked against a browser's output stage), and
   the splash, whose bandpass leaves it at a sixth of a pop's amplitude.
 - **The next real milestone is the Android build**, which was the reason for the
-  port. Touch has no hover state, so `PaintController`'s cursor ring needs
-  rethinking; UI scale on a phone is untested; `Mobile_Renderer` has no SSAO.
+  port. Touch input is in and tested, so what is left is:
+  - **Android Build Support is not installed in this Unity** — only WebGL and
+    Windows Standalone are. It is a Hub download and nothing here can proceed
+    without it.
+  - UI scale on a phone is untested. The canvas matches a 1920x1080 reference at
+    `matchWidthOrHeight = 0.5`, which says nothing about whether a 158 px pill is
+    reachable with a thumb.
+  - `Mobile_Renderer` has no SSAO, so the mobile build will not look like the
+    screenshots until that is decided one way or the other.
+  - **A finger covers what it paints.** There is no hover on touch, so the brush
+    ring only appears once the stroke has started and the stroke lands under the
+    fingertip. Offsetting the brush above the touch point is the usual answer;
+    whether it is the right one here cannot be judged without a device.
 - **Performance** in a real build: ~390 fps calm, ~175 fps storm at 1280×720,
   measured with nothing else running. An earlier 150/142 reading was taken with the
   editor open and is not a usable baseline. `-bench N` in the editor harness still reports the per-frame work in

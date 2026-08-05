@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 namespace Habagat
 {
@@ -48,8 +49,13 @@ namespace Habagat
 
         private void Start() => Apply();
 
+        /// <summary>Gap between the two fingers last frame, for the pinch.</summary>
+        private float _lastPinch;
+
         private void Update()
         {
+            if (TouchUpdate()) { Apply(); return; }
+
             var mouse = Mouse.current;
             if (mouse == null) return;
 
@@ -77,6 +83,63 @@ namespace Habagat
             if (Mathf.Abs(scroll) > 0.0001f) distance -= scroll * zoomSpeed * distance * 0.1f;
 
             Apply();
+        }
+
+        /// <summary>
+        /// Touch: one finger orbits, two pan and pinch. Returns whether it took the
+        /// frame, so the mouse path is skipped rather than adding to it — a Windows
+        /// laptop has both devices and would otherwise apply each gesture twice.
+        ///
+        /// Deltas are normalised to a 1080-pixel screen instead of used raw. Raw
+        /// pixels make the same physical swipe mean wildly different things across
+        /// devices: a full-height drag is 1080 px on a monitor and over 2000 on a
+        /// dense phone panel, so a gesture tuned on one is half as fast on the other.
+        /// Against screen height, a drag across the same FRACTION of the glass turns
+        /// the camera the same amount everywhere, and the tuned speeds below keep
+        /// meaning what they said when they were set with a mouse.
+        /// </summary>
+        private bool TouchUpdate()
+        {
+            var ts = Touchscreen.current;
+            if (ts == null) return false;
+
+            TouchControl a = null, b = null;
+            foreach (var t in ts.touches)
+            {
+                if (!t.press.isPressed) continue;
+                if (a == null) a = t;
+                else if (b == null) { b = t; break; }
+            }
+            if (a == null) { _lastPinch = 0f; return false; }
+
+            float scale = 0.1f * 1080f / Mathf.Max(Screen.height, 1);
+
+            if (b == null)
+            {
+                _lastPinch = 0f;
+                // A single finger is the one gesture the brush also wants, so it obeys
+                // the same rule the left mouse button does.
+                if (orbitEnabled)
+                {
+                    Vector2 d = a.delta.ReadValue() * scale;
+                    yaw += d.x * orbitSpeed * 12f;
+                    pitch -= d.y * orbitSpeed * 12f;
+                }
+                return true;
+            }
+
+            // Two fingers pan and zoom whatever the active tool is: a second finger
+            // cannot be part of a paint stroke, so there is nothing to arbitrate.
+            Vector2 pa = a.position.ReadValue(), pb = b.position.ReadValue();
+            float pinch = Vector2.Distance(pa, pb);
+            if (_lastPinch > 1f && pinch > 1f) distance *= _lastPinch / pinch;
+            _lastPinch = pinch;
+
+            Vector2 drag = (a.delta.ReadValue() + b.delta.ReadValue()) * 0.5f * scale;
+            var right = transform.right;
+            var fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            target -= (right * drag.x + fwd * drag.y) * panSpeed * distance;
+            return true;
         }
 
         private void Apply()
