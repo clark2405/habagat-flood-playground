@@ -7,6 +7,9 @@ dist/
 # .NET / Unity port
 [Bb]in/
 [Oo]bj/
+# Player output. BuildPlayer defaults to Build/Windows and Build/Web when -buildOut
+# is not given, and a WebGL build is ~50 MB of generated wasm.
+[Bb]uild/
 [Ll]ibrary/
 [Tt]emp/
 [Ll]ogs/

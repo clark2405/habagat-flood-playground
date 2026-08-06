@@ -19,6 +19,8 @@ Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
 | `HabagatEditor.MakeScene.Run` | regenerates `Assets/Scenes/Habagat.unity` |
 | `HabagatEditor.SceneShot.Run` | renders a PNG; `-bench N` times the frame loop |
 | `HabagatEditor.BuildPlayer.Run` | standalone player, `-buildOut <dir>` |
+| `HabagatEditor.BuildPlayer.RunWeb` | WebGL build — the only one that reaches a phone today |
+| `HabagatEditor.BuildPlayer.RunAndroid` / `.RunIOS` | scaffolded; neither module is installed |
 | `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity |
 
 Then `Habagat.exe -selftest -report r.txt` runs 32 checks against the built player
@@ -97,6 +99,12 @@ number written down on another day.
   scene uses `VertexColorLit`, so for a long time sweeping SSAO radius and intensity
   through their whole range changed not one pixel. If an AO setting appears to do
   nothing, check that something is sampling it before touching the numbers.
+- **A WebGL build defaults to Brotli, which no plain static server can serve.** A
+  `.br` file only loads if the response carries `Content-Encoding: br`, and
+  `python -m http.server` and the GitHub Pages root do not send it. The page then
+  fails with a decompression error that names nothing relevant.
+  `BuildPlayer.ConfigureWeb` turns compression off; the build is larger and always
+  loads.
 - **A shader found only by `Shader.Find` gets stripped from a build.** Every material
   here is made in code, so from Unity's asset-reference point of view nothing uses
   these shaders. `Shader.Find` then returns null in the player, `WorldBuilder` bails,
