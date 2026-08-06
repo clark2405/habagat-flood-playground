@@ -51,14 +51,19 @@ the gaps listed below.
   questions for the first person to listen: `SoundEngine.masterVolume` (2.2, a
   guess — the reference's gains were picked against a browser's output stage), and
   the splash, whose bandpass leaves it at a sixth of a pop's amplitude.
-- **The next real milestone is the Android build**, which was the reason for the
-  port. Touch input is in and tested, so what is left is:
+- **Phones.** Touch input is in and tested, and the build targets are scaffolded —
+  `BuildPlayer.RunAndroid` and `BuildPlayer.RunIOS` carry the settings each needs
+  and fail with a sentence naming the missing module rather than a wall of internal
+  errors. Neither has ever run. What stands between here and a device:
   - **Android Build Support is not installed in this Unity** — only WebGL and
-    Windows Standalone are. It is a Hub download and nothing here can proceed
-    without it.
+    Windows Standalone are. It is a Hub download.
+  - **iOS cannot be built from Windows at all**, module or not: Unity emits an
+    Xcode project and that needs macOS. The settings are recorded so the build is
+    one command away on a Mac; nothing more can be done from here.
   - UI scale on a phone is untested. The canvas matches a 1920x1080 reference at
     `matchWidthOrHeight = 0.5`, which says nothing about whether a 158 px pill is
-    reachable with a thumb.
+    reachable with a thumb. **The WebGL build answers this today** — open it on a
+    phone browser, no module required.
   - `Mobile_Renderer` has no SSAO, so the mobile build will not look like the
     screenshots until that is decided one way or the other.
   - **A finger covers what it paints.** There is no hover on touch, so the brush

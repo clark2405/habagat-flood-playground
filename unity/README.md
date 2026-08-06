@@ -187,12 +187,65 @@ of a correct *port* — it says nothing about whether the reference is right.
 - [x] Basketball court, bangka boats, mangroves and drain pumps
 - [x] Urban streets, footbridges, utility poles, market stalls, tricycles
 - [x] Runtime scene — `Assets/Scenes/Habagat.unity`, shared construction path
-- [ ] Weather and the animation loop
-- [ ] Sky dome and backdrop silhouettes
-- [ ] Interaction — raycast painting and the brush cursor
-- [ ] UI — the piece that genuinely has to be rebuilt
+- [x] Weather and the animation loop
+- [x] Sky dome, per-preset atmosphere and backdrop silhouettes
+- [x] Interaction — raycast painting and the brush cursor
+- [x] UI — the piece that genuinely had to be rebuilt
+- [x] Sound, synthesised rather than imported
+- [x] Touch input — one finger paints or orbits, two pan and pinch
+- [x] WebGL build target
+- [ ] Android build target — blocked on the Hub module, see `TASK.md`
 
 See `TASK.md` at the repo root for the ordered list and the known blockers.
+
+## Putting it in front of a person
+
+Nothing in this project has been judged by anyone actually holding it. The browser
+build is the shortest path to that, and it reaches a phone without Android Build
+Support being installed:
+
+```bash
+Unity.exe -batchmode -quit -projectPath unity/HabagatUnity \
+  -executeMethod HabagatEditor.BuildPlayer.RunWeb -buildOut <dir> -logFile web.log
+
+python -m http.server 8080 --directory <dir>
+```
+
+Then open `http://<your-lan-ip>:8080` on the phone, on the same network.
+
+Three things about this that are not obvious:
+
+- **Compression is turned off deliberately** (`BuildPlayer.ConfigureWeb`). Unity
+  defaults to Brotli, and a `.br` file only loads if the server sends
+  `Content-Encoding: br`. `python -m http.server` does not, nor does the GitHub
+  Pages root, and the failure surfaces as a decompression error that points nowhere
+  near the actual cause. Uncompressed is larger and always loads.
+- **Audio will not start until you tap something.** Browsers refuse to open an
+  AudioContext without a user gesture. This is the browser's rule, not a port bug —
+  the reference has exactly the same behaviour.
+- **The first load is slow and uncached.** It is tens of megabytes of wasm over
+  your LAN; give it a moment before concluding it is broken.
+
+## The phone targets
+
+Scaffolded, never run. `BuildPlayer.RunAndroid` and `BuildPlayer.RunIOS` carry the
+settings each platform needs and check for the module first, so a missing one
+fails with a sentence naming it rather than a wall of internal Unity errors.
+
+```bash
+Unity.exe -batchmode -quit -projectPath unity/HabagatUnity \
+  -executeMethod HabagatEditor.BuildPlayer.RunAndroid -buildOut <dir>
+```
+
+- **Android needs the Hub module** (Installs → gear → Add modules). IL2CPP and
+  ARM64 are set together and are not a preference: Play requires a 64-bit binary
+  and ARM64 is only reachable through IL2CPP.
+- **iOS cannot be built from Windows at all.** Unity emits an Xcode project, which
+  requires macOS. The settings live in `ConfigureIOS` so that build is one command
+  away on a Mac; there is nothing further to do from here.
+- **Both are landscape-only.** That is not taste — the interface is a wide bottom
+  bar of eight tool pills plus a 300 px storm button, and portrait either overflows
+  or shrinks it past the point of being hittable.
 
 The web build in `src/` remains the reference implementation and is not
 deprecated by this directory.
