@@ -23,9 +23,17 @@ Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
 | `HabagatEditor.BuildPlayer.RunAndroid` / `.RunIOS` | scaffolded; neither module is installed |
 | `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity |
 
-Then `Habagat.exe -selftest -report r.txt` runs 32 checks against the built player
-— brush, buttons, preset switching, frame rate, sound, touch — and exits non-zero
-on failure. It is the only check that covers anything a still frame cannot show.
+Then `Habagat.exe -selftest -report r.txt` runs 36 checks against the built player
+— brush, buttons, preset switching, frame rate, sound, touch, both UI densities —
+and exits non-zero on failure. It is the only check that covers anything a still
+frame cannot show.
+
+**A synthetic click is a real click.** The house test aimed wherever its projection
+landed; once the compact layout made the top bar bigger, that point sat over the
+*Urban preset button*, so the test switched presets mid-run. The visible symptom
+was touch painting nothing — because the rebuild replaced `Sim.Elev` and the test
+was still comparing against the array it had captured earlier. Read state through
+`world.Sim` each time, and keep synthetic input clear of the UI.
 
 Input is synthesised through the Input System's own event queue, including a
 `Touchscreen` added at runtime, so the raycasts and grid mapping run exactly as
@@ -119,6 +127,14 @@ number written down on another day.
   horizon search passes straight through props 2–4 units deep and the AO buffer
   comes back blank regardless of radius or blend intensity. It is set to match the
   geometry depth.
+- **The UI has two layouts, and DPI picks between them.** `HabagatUI.DensityFor`
+  divides `Screen.width` by the reported DPI, because device pixels cannot answer
+  the question — a 2x phone is 1688 px wide and would look roomier than a 1280 px
+  laptop while being a third the size. Below 1100 reference pixels the tool pills
+  lose their labels and keep their icons. Two consequences: a 125%-scaled Windows
+  desktop reports 120 DPI and picks Compact at 1280x720, and the editor harness
+  must be told the width via `ui.layoutWidthOverride` (`-uiwidth`), because in
+  batch mode `Screen` is the editor's own surface, not the RenderTexture.
 - **Touch and mouse coexist.** A Windows laptop reports both devices, so anything
   reading input must take one gesture per frame, not add them together — the
   camera's `TouchUpdate` returns whether it consumed the frame for exactly that

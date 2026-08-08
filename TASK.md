@@ -41,7 +41,7 @@ the gaps listed below.
 
 ### Loose ends
 - **A human still has not clicked anything.** `Habagat.exe -selftest` drives
-  synthetic mouse and touch events through the real input path and checks 32
+  synthetic mouse and touch events through the real input path and checks 36
   behaviours, but
   it proves the paths execute and change what they should — not that the result
   feels right. Camera feel, brush responsiveness and UI scale are unjudged.
@@ -60,10 +60,12 @@ the gaps listed below.
   - **iOS cannot be built from Windows at all**, module or not: Unity emits an
     Xcode project and that needs macOS. The settings are recorded so the build is
     one command away on a Mac; nothing more can be done from here.
-  - UI scale on a phone is untested. The canvas matches a 1920x1080 reference at
-    `matchWidthOrHeight = 0.5`, which says nothing about whether a 158 px pill is
-    reachable with a thumb. **The WebGL build answers this today** — open it on a
-    phone browser, no module required.
+  - UI scale is handled: below 1100 reference pixels the interface switches to a
+    compact layout — icon-only tool pills, shortened names, no title panel — and
+    scales against a 760x420 reference instead of 1920x1080, which takes a tool
+    button from about 16 reference pixels to about 40. Apple and Google both put
+    the floor for a touch target near 44, so this is close to it rather than past
+    it; whether it is *enough* is the first thing to judge on real glass.
   - `Mobile_Renderer` has no SSAO, so the mobile build will not look like the
     screenshots until that is decided one way or the other.
   - **A finger covers what it paints.** There is no hover on touch, so the brush

@@ -6,6 +6,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 // UnityEngine has a TouchPhase of its own, left over from the legacy input class.
 // This project is Input System only, so the ambiguity is resolved once here rather
@@ -81,6 +82,11 @@ namespace Habagat
             Check("camera present", paint != null && paint.cam != null);
             Check("mouse device", Mouse.current != null);
             Check("UI canvas built", ui != null && ui.Canvas != null);
+            // Which layout was chosen and why. Screen.dpi is the input nobody can
+            // guess: a hidpi desktop reports well over 96 and pushes a perfectly
+            // roomy 1280-wide window into the phone layout.
+            _log.AppendLine($"DIAG  dpi={Screen.dpi} density={ui.DensityName} " +
+                            $"layoutBuilds={ui.LayoutBuilds}");
 
             // ── Sound ────────────────────────────────────────────────────────
             // Whether the cues sound good is not checkable here. What is checkable is
@@ -147,8 +153,11 @@ namespace Habagat
             _log.AppendLine($"DIAG  straight-down ray hit={downHit}" + (downHit ? $" on {dh.collider.name} at {dh.point}" : ""));
             var centreRay = c.ScreenPointToRay(centre);
             _log.AppendLine($"DIAG  centre ray origin={centreRay.origin} dir={centreRay.direction}");
-            float[] elev = world.Sim.Elev;
-            var before = (float[])elev.Clone();
+            // Read through world.Sim every time rather than held in a local: a preset
+            // switch replaces the whole simulation, so a captured array quietly stops
+            // being the one the brush is writing to and every later check reads zero
+            // change from a brush that is working perfectly.
+            var before = (float[])world.Sim.Elev.Clone();
 
             paint.brush = PaintController.Brush.Raise;
             yield return MoveMouse(centre, true);
@@ -157,7 +166,8 @@ namespace Habagat
             for (int i = 0; i < 3; i++) yield return null;
 
             int changed = 0;
-            for (int i = 0; i < elev.Length; i++) if (Math.Abs(elev[i] - before[i]) > 1e-6f) changed++;
+            for (int i = 0; i < before.Length; i++)
+                if (Math.Abs(world.Sim.Elev[i] - before[i]) > 1e-6f) changed++;
             Check("raise brush paints", changed > 0, $"{changed} cells changed");
 
             // Painting must move the ground, so the collider has to have been remade
@@ -187,6 +197,11 @@ namespace Habagat
             // middle of the coastal map is the river mouth, so the first version of
             // this test was clicking on water and reading a correct refusal as a
             // failure.
+            // Kept to the middle band of the screen, clear of the bars. A synthetic
+            // press is a real press: the first version aimed wherever the projection
+            // landed, the compact layout put the top bar over that point, and the test
+            // clicked the Urban preset — rebuilding the world mid-test, which then
+            // showed up as touch painting nothing and the house rule placing five.
             var spot = centre;
             for (int gy = 6; gy < FloodSim.H - 6 && spot == centre; gy += 2)
                 for (int gx = 6; gx < FloodSim.W - 6; gx += 2)
@@ -200,10 +215,20 @@ namespace Habagat
                                          world.Sim.Elev[gy * FloodSim.W + gx],
                                          -(gy - FloodSim.H / 2f + 0.5f));
                     var sp = paint.cam.WorldToScreenPoint(wp);
-                    if (sp.z <= 0 || sp.x < 0 || sp.x >= Screen.width || sp.y < 0 || sp.y >= Screen.height) continue;
+                    if (sp.z <= 0) continue;
+                    if (sp.x < Screen.width * 0.15f || sp.x > Screen.width * 0.85f) continue;
+                    if (sp.y < Screen.height * 0.42f || sp.y > Screen.height * 0.60f) continue;
                     spot = new Vector2(sp.x, sp.y);
                     break;
                 }
+
+            // Verified rather than assumed, because the band above is a guess about
+            // where the bars are and the bars move with the layout.
+            yield return MoveMouse(spot, false);
+            yield return null;
+            bool spotClear = EventSystem.current == null ||
+                             !EventSystem.current.IsPointerOverGameObject(-1);
+            Check("house target is clear of the UI", spotClear && spot != centre, $"at {spot}");
             _log.AppendLine($"DIAG  house target screen={spot}");
 
             int homesBefore = world.Houses.Count;
@@ -225,31 +250,45 @@ namespace Habagat
             // Touchscreen.current like any other device, and a synthesised device is
             // the same object a phone's driver would produce.
             var screen = InputSystem.AddDevice<Touchscreen>();
+            // A freshly added device is not always current on the very next frame, and
+            // when it is not, every touch check fails as though touch were broken. One
+            // run in five did that before this wait — which is worse than a real
+            // failure, because it teaches you to re-run until it passes.
+            for (int i = 0; i < 10 && Touchscreen.current == null; i++) yield return null;
             yield return null;
+            Check("touch device ready", Touchscreen.current != null);
 
-            var touchBefore = (float[])elev.Clone();
+            var touchBefore = (float[])world.Sim.Elev.Clone();
             paint.brush = PaintController.Brush.Raise;
+            int paintsBefore = paint.PaintCalls;
             Finger(screen, 1, centre, TouchPhase.Began);
             yield return Step(8);
+            var pt = Touchscreen.current != null ? Touchscreen.current.primaryTouch : null;
+            _log.AppendLine($"DIAG  paintCalls +{paint.PaintCalls - paintsBefore} " +
+                            $"brush={paint.brush}");
+            _log.AppendLine($"DIAG  touch pressed={(pt != null && pt.press.isPressed)} " +
+                            $"pos={(pt != null ? pt.position.ReadValue() : Vector2.zero)} " +
+                            $"overUI={(EventSystem.current != null && pt != null && EventSystem.current.IsPointerOverGameObject(pt.touchId.ReadValue()))} " +
+                            $"target={centre}");
             Finger(screen, 1, centre, TouchPhase.Ended);
             yield return Step(3);
 
             int touched = 0;
-            for (int i = 0; i < elev.Length; i++)
-                if (Math.Abs(elev[i] - touchBefore[i]) > 1e-6f) touched++;
+            for (int i = 0; i < touchBefore.Length; i++)
+                if (Math.Abs(world.Sim.Elev[i] - touchBefore[i]) > 1e-6f) touched++;
             Check("brush paints under a finger", touched > 0, $"{touched} cells changed");
 
             // Two fingers is the camera's gesture. If the brush still stamped, every
             // attempt to pan or pinch would gouge the map on the way past. Both go down
             // in the same frame — see Step — or the gap between them is a legitimate
             // one-finger stroke and the check measures nothing.
-            var pinchBefore = (float[])elev.Clone();
+            var pinchBefore = (float[])world.Sim.Elev.Clone();
             Finger(screen, 1, centre + new Vector2(-60f, 0f), TouchPhase.Began);
             Finger(screen, 2, centre + new Vector2(60f, 0f), TouchPhase.Began);
             yield return Step(8);
             int gouged = 0;
-            for (int i = 0; i < elev.Length; i++)
-                if (Math.Abs(elev[i] - pinchBefore[i]) > 1e-6f) gouged++;
+            for (int i = 0; i < pinchBefore.Length; i++)
+                if (Math.Abs(world.Sim.Elev[i] - pinchBefore[i]) > 1e-6f) gouged++;
             Check("two fingers do not paint", gouged == 0, $"{gouged} cells changed");
 
             // And the camera has to actually respond to them, or the tool palette is
@@ -283,6 +322,26 @@ namespace Habagat
             var buttons = ui.Canvas.GetComponentsInChildren<Button>(true);
             Check("UI has buttons", buttons.Length >= 12, $"{buttons.Length} found");
 
+            // Both layouts get built, whichever one this machine happens to pick. On a
+            // 125%-scaled desktop the density rule reports 1024 reference pixels and
+            // chooses Compact even at 1280x720, which would leave the desktop layout
+            // never exercised by anything here.
+            foreach (var (label, width) in new (string, float)[] { ("comfortable", 1920f), ("compact", 800f) })
+            {
+                ui.layoutWidthOverride = width;
+                // Two frames, not one: the rebuild happens in HabagatUI.Update, which
+                // may already have run for the frame this coroutine is resumed in.
+                yield return null;
+                yield return null;
+                var b = ui.Canvas.GetComponentsInChildren<Button>(true);
+                Check($"{label} layout builds", b.Length >= 12 && FindButton(b, "Pause") != null,
+                      $"{b.Length} buttons");
+            }
+            ui.layoutWidthOverride = 0f;
+            yield return null;
+            yield return null;
+            buttons = ui.Canvas.GetComponentsInChildren<Button>(true);
+
             // A press that lands on the palette must not also stamp the ground behind
             // it. Worth its own check because the guard is now asked about a specific
             // pointer id rather than "the last pointer uGUI saw" — a change made for
@@ -312,7 +371,7 @@ namespace Habagat
             }
 
             bool ranBefore = world.running;
-            var pause = FindButton(buttons, "Pause Sim");
+            var pause = FindButton(buttons, "Pause");
             Check("pause button exists", pause != null);
             if (pause != null)
             {
@@ -323,7 +382,7 @@ namespace Habagat
                 yield return null;
             }
 
-            var storm = FindButton(buttons, "SUMMON HABAGAT STORM");
+            var storm = FindButton(buttons, "Storm");
             if (storm != null)
             {
                 bool s0 = world.storm;
@@ -424,13 +483,15 @@ namespace Habagat
             for (float t = 0f; t < seconds; t += Time.unscaledDeltaTime) yield return null;
         }
 
-        private static Button FindButton(Button[] all, string label)
+        /// <summary>
+        /// By GameObject name, not by the text on the face. The compact layout
+        /// shortens "Pause Sim" to "Pause" and drops the tool labels entirely, so
+        /// matching on what a button says finds nothing the moment the window is
+        /// narrow — which is how this test started failing on a hidpi screen.
+        /// </summary>
+        private static Button FindButton(Button[] all, string id)
         {
-            foreach (var b in all)
-            {
-                var t = b.GetComponentInChildren<Text>();
-                if (t != null && t.text == label) return b;
-            }
+            foreach (var b in all) if (b.name == "Btn_" + id) return b;
             return null;
         }
 

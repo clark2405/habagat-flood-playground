@@ -167,6 +167,12 @@ namespace HabagatEditor
                 {
                     worldGo.AddComponent<PaintController>().cam = cam;
                     var ui = worldGo.AddComponent<HabagatUI>();
+                    // The UI picks its density from the screen, and in batch mode
+                    // Screen is the editor's surface rather than what is being
+                    // rendered — so it is told the shot's width instead. `-uiwidth`
+                    // overrides it again, which is how the phone layout gets looked at
+                    // without a phone.
+                    ui.layoutWidthOverride = float.Parse(Arg("-uiwidth", width.ToString()));
                     ui.Build();
                     ui.Canvas.renderMode = RenderMode.ScreenSpaceCamera;
                     ui.Canvas.worldCamera = cam;
