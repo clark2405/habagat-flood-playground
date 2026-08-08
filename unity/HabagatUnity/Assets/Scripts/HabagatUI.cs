@@ -36,6 +36,52 @@ namespace Habagat
         private Text _status;
         private Button _pauseBtn;
         private Button _muteBtn;
+
+        /// <summary>
+        /// How much room the interface may spend. Comfortable is the desktop layout
+        /// this was designed at; Compact is what fits in a hand.
+        /// </summary>
+        private enum Density { Comfortable, Compact }
+
+        private Density _density = Density.Comfortable;
+        private bool Compact => _density == Density.Compact;
+
+        /// <summary>Diagnostics for the self-test: which layout, and how many rebuilds.</summary>
+        public string DensityName => _density.ToString();
+        public int LayoutBuilds { get; private set; }
+
+        /// <summary>
+        /// Chosen from the screen's width in *reference* pixels, not device pixels.
+        ///
+        /// Device pixels cannot answer this question. A phone reporting a 2x pixel
+        /// ratio has a 1688-pixel-wide screen and would look roomier than a 1280-wide
+        /// laptop, which is backwards — it is a third of the physical size. Dividing
+        /// by the reported DPI recovers something proportional to how big the glass
+        /// actually is, which is what decides whether a label fits or a thumb lands.
+        ///
+        /// Screen.dpi is 0 where the platform will not say; the raw width is the right
+        /// fallback there, since every platform that does not know its DPI is a desktop.
+        /// </summary>
+        /// <summary>
+        /// Width in reference pixels to lay out for, overriding the screen. Zero means
+        /// ask the screen, which is right everywhere except the editor harness: in
+        /// batch mode Screen reports the editor's own surface rather than the
+        /// RenderTexture being drawn into, so without this a 1600x900 screenshot
+        /// silently shows the phone layout and stops being evidence about anything.
+        /// </summary>
+        [System.NonSerialized] public float layoutWidthOverride;
+
+        private Density DensityFor()
+        {
+            if (layoutWidthOverride > 0f)
+                return layoutWidthOverride < 1100f ? Density.Compact : Density.Comfortable;
+
+            float dpi = Screen.dpi;
+            float refWidth = dpi > 1f ? Screen.width * 96f / dpi : Screen.width;
+            // 1100 sits between a small laptop window and a large tablet. The labelled
+            // bars need ~1400 units of canvas and stop fitting well before this.
+            return refWidth < 1100f ? Density.Compact : Density.Comfortable;
+        }
         private readonly List<(Button btn, PaintController.Brush brush)> _toolBtns = new();
         private readonly List<(Button btn, PresetType preset)> _presetBtns = new();
 
@@ -60,6 +106,7 @@ namespace Habagat
             // Absent in the screenshot harness, so every use of it is guarded.
             _sound = GetComponent<Audio.SoundEngine>();
             _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _density = DensityFor();
             BuildLayout();
         }
 
@@ -284,13 +331,21 @@ namespace Habagat
         /// controls 350 — so the interface has a little tonal map of itself, and a
         /// misrouted click is audible before it is visible.
         /// </summary>
-        private Button Pill(Transform parent, string text, System.Action onClick, float width = 150f,
-                            Glyph glyph = Glyph.None, float clickHz = 0f)
+        /// <summary>
+        /// <paramref name="id"/> names the GameObject and never changes; <paramref
+        /// name="text"/> is what the button shows, which density does change. Keeping
+        /// them apart is what lets anything find a button by what it IS — the
+        /// self-test was looking for "Pause Sim" and finding nothing once compact had
+        /// shortened it to "Pause".
+        /// </summary>
+        private Button Pill(Transform parent, string id, string text, System.Action onClick,
+                            float width = 150f, Glyph glyph = Glyph.None, float clickHz = 0f,
+                            bool showLabel = true)
         {
             // Colour lives in the Button's ColorBlock, not on the Image: the Button
             // drives targetGraphic.color on every state change, so anything written
             // straight onto the Image is overwritten the moment the pointer moves.
-            var go = Box("Btn_" + text, parent, Color.white, 10);
+            var go = Box("Btn_" + id, parent, Color.white, 10);
             var le = go.AddComponent<LayoutElement>();
             le.preferredWidth = width;
             le.preferredHeight = 40f;
@@ -298,11 +353,17 @@ namespace Habagat
             btn.targetGraphic = go.GetComponent<Image>();
             btn.transition = Selectable.Transition.ColorTint;
             btn.colors = Colors(Idle);
-            var label = Label("Text", go.transform, text, 15, Ink);
-            label.raycastTarget = false;
-            var lr = Rect(label.gameObject);
-            lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
-            lr.offsetMin = Vector2.zero; lr.offsetMax = Vector2.zero;
+            // The GameObject keeps the full name even when the label is hidden, so a
+            // button stays findable by what it is rather than by what it shows.
+            RectTransform lr = null;
+            if (showLabel)
+            {
+                var label = Label("Text", go.transform, text, 15, Ink);
+                label.raycastTarget = false;
+                lr = Rect(label.gameObject);
+                lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
+                lr.offsetMin = Vector2.zero; lr.offsetMax = Vector2.zero;
+            }
 
             if (glyph != Glyph.None)
             {
@@ -315,13 +376,25 @@ namespace Habagat
                 // spot in the middle of its own button.
                 img.raycastTarget = false;
                 var ir = Rect(ico);
-                ir.anchorMin = ir.anchorMax = new Vector2(0f, 0.5f);
-                ir.pivot = new Vector2(0f, 0.5f);
-                ir.anchoredPosition = new Vector2(11f, 0f);
-                ir.sizeDelta = new Vector2(19f, 19f);
-                // The label centres in what is left over, so it stays optically
-                // centred instead of colliding with the glyph.
-                lr.offsetMin = new Vector2(30f, 0f);
+                if (showLabel)
+                {
+                    ir.anchorMin = ir.anchorMax = new Vector2(0f, 0.5f);
+                    ir.pivot = new Vector2(0f, 0.5f);
+                    ir.anchoredPosition = new Vector2(11f, 0f);
+                    ir.sizeDelta = new Vector2(19f, 19f);
+                    // The label centres in what is left over, so it stays optically
+                    // centred instead of colliding with the glyph.
+                    lr.offsetMin = new Vector2(30f, 0f);
+                }
+                else
+                {
+                    // Alone, the glyph takes the middle and grows — it is now the whole
+                    // meaning of the button, not an ornament beside the word.
+                    ir.anchorMin = ir.anchorMax = new Vector2(0.5f, 0.5f);
+                    ir.pivot = new Vector2(0.5f, 0.5f);
+                    ir.anchoredPosition = Vector2.zero;
+                    ir.sizeDelta = new Vector2(24f, 24f);
+                }
             }
 
             btn.onClick.AddListener(() =>
@@ -344,7 +417,9 @@ namespace Habagat
             var want = active ? Selected : Idle;
             if (b.colors.normalColor != want) b.colors = Colors(want);
             var ink = active ? Color.white : Ink;
-            b.GetComponentInChildren<Text>().color = ink;
+            // No Text at all on an icon-only pill.
+            var txt = b.GetComponentInChildren<Text>();
+            if (txt != null) txt.color = ink;
             // The glyph follows the label, or a selected button ends up with white
             // text beside a near-black icon.
             var ico = b.transform.Find("Icon");
@@ -369,7 +444,7 @@ namespace Habagat
             h.childControlHeight = true;
             h.childForceExpandWidth = false;
             h.childForceExpandHeight = false;
-            h.padding = new RectOffset(14, 14, 10, 10);
+            h.padding = Compact ? new RectOffset(8, 8, 6, 6) : new RectOffset(14, 14, 10, 10);
             var f = go.AddComponent<ContentSizeFitter>();
             f.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             f.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -379,61 +454,74 @@ namespace Habagat
         // ── Layout ───────────────────────────────────────────────────────────
         private void BuildLayout()
         {
+            // Rebuilt wholesale on a density change rather than resized in place:
+            // half these widths are baked into LayoutElements and the tool pills
+            // change shape entirely, so there is less to go wrong in throwing it away.
+            if (Canvas != null) DestroyImmediate(Canvas.gameObject);
+            _toolBtns.Clear();
+            _presetBtns.Clear();
+            LayoutBuilds++;
+
             var canvasGo = new GameObject("UI", typeof(RectTransform));
             canvasGo.transform.SetParent(transform, false);
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
+            // A much smaller reference on a handheld, which is what actually enlarges
+            // everything: at 760x420 a phone lands near 2x, taking the 40-unit pills
+            // from about 16 reference pixels to about 40. Apple and Google both put
+            // the floor for a touch target around 44, so this is close to it rather
+            // than comfortably past it — it is bounded by the bars still having to fit.
+            scaler.referenceResolution = Compact ? new Vector2(760, 420) : new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
             canvasGo.AddComponent<GraphicRaycaster>();
             Canvas = canvas;
             var root = canvasGo.transform;
 
             // Title, top left. Fixed size, so no layout group.
-            var title = Box("Title", root, Panel);
-            var tr = Rect(title);
-            tr.anchorMin = tr.anchorMax = new Vector2(0f, 1f);
-            tr.pivot = new Vector2(0f, 1f);
-            tr.anchoredPosition = new Vector2(24, -24);
-            tr.sizeDelta = new Vector2(360, 84);
-            var h1 = Label("H1", title.transform, "HABAGAT 3D", 30, Ink, TextAnchor.UpperLeft);
-            var h1r = Rect(h1.gameObject);
-            h1r.anchorMin = Vector2.zero; h1r.anchorMax = Vector2.one;
-            h1r.offsetMin = new Vector2(18, 8); h1r.offsetMax = new Vector2(-18, -12);
-            _status = Label("Status", title.transform, "Safe & Dry", 18, Accent, TextAnchor.LowerLeft);
-            var sr = Rect(_status.gameObject);
-            sr.anchorMin = Vector2.zero; sr.anchorMax = Vector2.one;
-            sr.offsetMin = new Vector2(18, 12); sr.offsetMax = new Vector2(-18, -8);
+            //
+            // Dropped entirely when compact. It is not a space saving so much as a
+            // collision: the top bar is centred and nearly fills a phone's width, so
+            // the two overlap and "HABAGAT 3D" is sliced off mid-word. Nothing is lost
+            // with it — the status line said "1 homes flooded" and the stats row
+            // already says "Homes 1" — so the alarm colour moves there instead.
+            _status = null;
+            if (!Compact) BuildTitle(root);
 
             // Presets and camera, top centre.
             var topBar = Bar("TopBar", root);
             var tb = Rect(topBar);
             tb.anchorMin = tb.anchorMax = new Vector2(0.5f, 1f);
             tb.pivot = new Vector2(0.5f, 1f);
-            tb.anchoredPosition = new Vector2(0, -24);
+            tb.anchoredPosition = new Vector2(0, Compact ? -12 : -24);
 
-            foreach (var (name, preset) in new (string, PresetType)[]
+            // The preset names shorten rather than the buttons shrinking: "Coastal"
+            // at half the point size is unreadable at arm's length, "River" is not.
+            foreach (var (name, shortName, preset) in new (string, string, PresetType)[]
             {
-                ("Coastal", PresetType.Coastal), ("River Valley", PresetType.River),
-                ("Urban", PresetType.Urban), ("Typhoon Island", PresetType.Island),
+                ("Coastal", "Coast", PresetType.Coastal),
+                ("River Valley", "River", PresetType.River),
+                ("Urban", "Urban", PresetType.Urban),
+                ("Typhoon Island", "Island", PresetType.Island),
             })
-                _presetBtns.Add((Pill(topBar.transform, name, () => SwitchPreset(preset), 150,
+                _presetBtns.Add((Pill(topBar.transform, name, Compact ? shortName : name,
+                                      () => SwitchPreset(preset), Compact ? 96 : 150,
                                       Glyph.None, 400f), preset));
 
-            Pill(topBar.transform, "Iso", () => SetView(135f, 48f, 92f), 80, Glyph.None, 500f);
-            Pill(topBar.transform, "Top", () => SetView(135f, 13f, 100f), 80, Glyph.None, 500f);
-            Pill(topBar.transform, "Cozy", () => SetView(120f, 62f, 46f), 90, Glyph.None, 500f);
+            float viewW = Compact ? 62 : 80;
+            Pill(topBar.transform, "Iso", "Iso", () => SetView(135f, 48f, 92f), viewW, Glyph.None, 500f);
+            Pill(topBar.transform, "Top", "Top", () => SetView(135f, 13f, 100f), viewW, Glyph.None, 500f);
+            Pill(topBar.transform, "Cozy", "Cozy", () => SetView(120f, 62f, 46f), Compact ? 62 : 90, Glyph.None, 500f);
 
             // Everything else stacks at the bottom centre.
             var bottom = Node("Bottom", root);
             var br = Rect(bottom);
             br.anchorMin = br.anchorMax = new Vector2(0.5f, 0f);
             br.pivot = new Vector2(0.5f, 0f);
-            br.anchoredPosition = new Vector2(0, 24);
+            br.anchoredPosition = new Vector2(0, Compact ? 10 : 24);
             var vl = bottom.AddComponent<VerticalLayoutGroup>();
-            vl.spacing = 10;
+            vl.spacing = Compact ? 6 : 10;
             vl.childAlignment = TextAnchor.LowerCenter;
             vl.childControlWidth = true; vl.childControlHeight = true;
             vl.childForceExpandWidth = false; vl.childForceExpandHeight = false;
@@ -442,9 +530,9 @@ namespace Habagat
             bf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             var statsBar = Bar("Stats", bottom.transform);
-            _stats = Label("StatsText", statsBar.transform, "Tick: 0", 19, Ink);
+            _stats = Label("StatsText", statsBar.transform, "Tick: 0", Compact ? 14 : 19, Ink);
 
-            var toolBar = Bar("Tools", bottom.transform);
+            var toolBar = Bar("Tools", bottom.transform, Compact ? 5f : 8f);
             foreach (var (name, brush, glyph) in new (string, PaintController.Brush, Glyph)[]
             {
                 ("Pan & Orbit", PaintController.Brush.None, Glyph.Move),
@@ -456,31 +544,69 @@ namespace Habagat
                 ("Barangay Home", PaintController.Brush.House, Glyph.House),
                 ("Clear", PaintController.Brush.Clear, Glyph.Cross),
             })
-                _toolBtns.Add((Pill(toolBar.transform, name,
-                    () => { if (_paint != null) _paint.brush = brush; }, 158, glyph, 480f), brush));
+                // Icon only when compact. Eight labelled pills need about 1350 units
+                // and there are only ~830 on a phone, so something had to give — and
+                // the icons were drawn for exactly this. The button stays 58 wide
+                // rather than shrinking to the glyph, because the tappable area is the
+                // point, not the drawing.
+                _toolBtns.Add((Pill(toolBar.transform, name, name,
+                    () => { if (_paint != null) _paint.brush = brush; },
+                    Compact ? 58 : 158, glyph, 480f, showLabel: !Compact), brush));
 
-            var ctrlBar = Bar("Controls", bottom.transform, 14f);
-            var stormBtn = Pill(ctrlBar.transform, "SUMMON HABAGAT STORM", ToggleStorm, 300, Glyph.None, 350f);
+            var ctrlBar = Bar("Controls", bottom.transform, Compact ? 8f : 14f);
+            var stormBtn = Pill(ctrlBar.transform, "Storm",
+                                Compact ? "STORM" : "SUMMON HABAGAT STORM",
+                                ToggleStorm, Compact ? 130 : 300, Glyph.None, 350f);
             stormBtn.colors = Colors(Accent);
             stormBtn.GetComponentInChildren<Text>().color = Color.white;
-            _pauseBtn = Pill(ctrlBar.transform, "Pause Sim", TogglePause, 130, Glyph.None, 350f);
+            _pauseBtn = Pill(ctrlBar.transform, "Pause", Compact ? "Pause" : "Pause Sim", TogglePause,
+                             Compact ? 92 : 130, Glyph.None, 350f);
             // No click pitch of its own: the blip it would make is the very thing it
             // is being pressed to stop, and on the way back it is drowned by the pop
             // the un-muting already plays.
-            _muteBtn = Pill(ctrlBar.transform, "Sound On", ToggleMute, 150, Glyph.Sound);
+            _muteBtn = Pill(ctrlBar.transform, "Sound", "Sound On", ToggleMute, Compact ? 58 : 150,
+                            Glyph.Sound, showLabel: !Compact);
 
-            var rainLabel = Label("RainLabel", ctrlBar.transform, "Rain", 18, Ink);
-            var rle = rainLabel.gameObject.AddComponent<LayoutElement>();
-            rle.preferredWidth = 56; rle.preferredHeight = 40;
+            // The word "Rain" goes when compact; the slider is the only thing in the
+            // interface shaped like a slider, so it does not need naming.
+            if (!Compact)
+            {
+                var rainLabel = Label("RainLabel", ctrlBar.transform, "Rain", 18, Ink);
+                var rle = rainLabel.gameObject.AddComponent<LayoutElement>();
+                rle.preferredWidth = 56; rle.preferredHeight = 40;
+            }
 
             BuildSlider(ctrlBar.transform).onValueChanged.AddListener(v => _world.rain = v);
+        }
+
+        private void BuildTitle(Transform root)
+        {
+            var title = Box("Title", root, Panel);
+            var tr = Rect(title);
+            tr.anchorMin = tr.anchorMax = new Vector2(0f, 1f);
+            tr.pivot = new Vector2(0f, 1f);
+            tr.anchoredPosition = new Vector2(24, -24);
+            tr.sizeDelta = new Vector2(360, 84);
+
+            var h1 = Label("H1", title.transform, "HABAGAT 3D", 30, Ink, TextAnchor.UpperLeft);
+            var h1r = Rect(h1.gameObject);
+            h1r.anchorMin = Vector2.zero; h1r.anchorMax = Vector2.one;
+            h1r.offsetMin = new Vector2(18, 8); h1r.offsetMax = new Vector2(-18, -12);
+
+            _status = Label("Status", title.transform, "Safe & Dry", 18, Accent, TextAnchor.LowerLeft);
+            var sr = Rect(_status.gameObject);
+            sr.anchorMin = Vector2.zero; sr.anchorMax = Vector2.one;
+            sr.offsetMin = new Vector2(18, 12); sr.offsetMax = new Vector2(-18, -8);
         }
 
         private Slider BuildSlider(Transform parent)
         {
             var go = Box("Rain", parent, new Color(0.88f, 0.89f, 0.9f), 7);
             var le = go.AddComponent<LayoutElement>();
-            le.preferredWidth = 200; le.preferredHeight = 14;
+            le.preferredWidth = Compact ? 140 : 200;
+            // Thicker when compact: 14 units is a comfortable mouse target and an
+            // impossible thumb one.
+            le.preferredHeight = Compact ? 22 : 14;
             var slider = go.AddComponent<Slider>();
             slider.minValue = 0f; slider.maxValue = 10f; slider.value = 0f;
 
@@ -520,7 +646,9 @@ namespace Habagat
         {
             if (_sound == null) return;
             bool muted = _sound.ToggleMute();
-            _muteBtn.GetComponentInChildren<Text>().text = muted ? "Sound Off" : "Sound On";
+            // Compact drops the word, so the glyph is the whole of the feedback.
+            var txt = _muteBtn.GetComponentInChildren<Text>();
+            if (txt != null) txt.text = muted ? "Sound Off" : "Sound On";
             SetGlyph(_muteBtn, muted ? Glyph.Mute : Glyph.Sound);
             // Confirms it came back — the only feedback that proves audio is alive.
             if (!muted) _sound.PlayPop(350f);
@@ -532,7 +660,19 @@ namespace Habagat
             _pauseBtn.GetComponentInChildren<Text>().text = _world.running ? "Pause Sim" : "Resume Sim";
         }
 
-        private void Update() => Refresh();
+        private void Update()
+        {
+            // A browser window dragged narrow, or a phone turned over, crosses the
+            // threshold without anything else happening — so it is checked here rather
+            // than only at startup.
+            var want = DensityFor();
+            if (want != _density)
+            {
+                _density = want;
+                BuildLayout();
+            }
+            Refresh();
+        }
 
         /// <summary>
         /// Push the current simulation state into the readout. Public so the
@@ -542,17 +682,33 @@ namespace Habagat
         {
             if (_world?.Sim == null || _stats == null) return;
             var s = _world.Stats;
-            _stats.text = $"Homes Flooded: {s.FloodedHouses}    " +
-                          $"Flooded Cells: {s.Flooded}    " +
-                          $"Mangroves: {s.MangroveCount}    " +
-                          $"Drains: {s.DrainCount}    " +
-                          $"Tick: {s.Tick}";
+            // The full readout is about 600 units wide, which is most of a phone's
+            // canvas. Compact keeps every number and drops the prose around them.
+            // Abbreviated words rather than symbols: the font is LegacyRuntime.ttf,
+            // which has no dependable coverage past Latin, and a missing glyph renders
+            // as an empty box — worse than the word it replaced.
+            _stats.text = Compact
+                ? $"Homes {s.FloodedHouses}   Cells {s.Flooded}   " +
+                  $"Mang {s.MangroveCount}   Drain {s.DrainCount}   t{s.Tick}"
+                : $"Homes Flooded: {s.FloodedHouses}    " +
+                  $"Flooded Cells: {s.Flooded}    " +
+                  $"Mangroves: {s.MangroveCount}    " +
+                  $"Drains: {s.DrainCount}    " +
+                  $"Tick: {s.Tick}";
 
-            // The status line is the one piece of feedback that has to be legible at
-            // a glance while the water is rising.
+            // The one piece of feedback that has to be legible at a glance while the
+            // water is rising. Compact has no title panel to put it in, so the whole
+            // stats row carries the alarm colour instead — the number is already in it.
             bool wet = s.FloodedHouses > 0;
-            _status.text = wet ? $"{s.FloodedHouses} homes flooded" : "Safe & Dry";
-            _status.color = wet ? Accent : new Color(0.16f, 0.55f, 0.30f);
+            if (_status != null)
+            {
+                _status.text = wet ? $"{s.FloodedHouses} homes flooded" : "Safe & Dry";
+                _status.color = wet ? Accent : new Color(0.16f, 0.55f, 0.30f);
+            }
+            else
+            {
+                _stats.color = wet ? Accent : Ink;
+            }
 
             foreach (var (btn, brush) in _toolBtns) Tint(btn, _paint != null && _paint.brush == brush);
             foreach (var (btn, preset) in _presetBtns) Tint(btn, _world.preset == preset);

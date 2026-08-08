@@ -173,8 +173,12 @@ namespace Habagat
             if (pointer.Pressed) Paint(gx, gy);
         }
 
+        /// <summary>Diagnostics for the self-test: how many times the brush stamped.</summary>
+        public int PaintCalls { get; private set; }
+
         private void Paint(int gx, int gy)
         {
+            PaintCalls++;
             // Homes are placed, not painted: one per cell, and the whole scatter has
             // to be regenerated around them, so this never goes through FloodSim.Paint.
             if (brush == Brush.House)
