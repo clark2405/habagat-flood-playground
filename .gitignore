@@ -16,3 +16,9 @@ dist/
 [Uu]serSettings/
 *.csproj.user
 *.sln.DotSettings.user
+# Unity regenerates these from the .asmdef layout on every editor run, so they
+# turned up modified in literally every commit. HabagatSim.Verify.csproj is NOT
+# one of them — it is hand-written, and it is what links the simulation sources
+# into the dotnet fingerprint harness.
+unity/HabagatUnity/*.csproj
+unity/HabagatUnity/*.sln
