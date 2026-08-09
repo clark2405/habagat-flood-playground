@@ -242,6 +242,18 @@ namespace HabagatEditor
                 };
 
                 cam.targetTexture = rtBig;
+                // Rendered twice, and the first one thrown away.
+                //
+                // The editor compiles shaders asynchronously and substitutes a
+                // placeholder until each variant is ready, so a single render can be
+                // captured before the real ones exist. It shows up as terrain in flat
+                // blue or black with the props missing — and it is size-dependent,
+                // which is what made it look random: a 1600x900 shot takes long enough
+                // that compilation wins the race, an 844x390 one often does not.
+                // Turning async compilation off is the actual fix; the warm-up frame
+                // costs nothing and covers anything else that is lazily created.
+                ShaderUtil.allowAsyncCompilation = false;
+                cam.Render();
                 cam.Render();
                 Graphics.Blit(rtBig, rtSmall);
 

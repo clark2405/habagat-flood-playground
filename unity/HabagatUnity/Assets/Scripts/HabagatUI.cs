@@ -82,7 +82,7 @@ namespace Habagat
             // bars need ~1400 units of canvas and stop fitting well before this.
             return refWidth < 1100f ? Density.Compact : Density.Comfortable;
         }
-        private readonly List<(Button btn, PaintController.Brush brush)> _toolBtns = new();
+        private readonly List<(Button btn, PaintController.Brush brush, string name)> _toolBtns = new();
         private readonly List<(Button btn, PresetType preset)> _presetBtns = new();
 
         /// <summary>The canvas, so the screenshot harness can retarget it.</summary>
@@ -551,7 +551,7 @@ namespace Habagat
                 // point, not the drawing.
                 _toolBtns.Add((Pill(toolBar.transform, name, name,
                     () => { if (_paint != null) _paint.brush = brush; },
-                    Compact ? 58 : 158, glyph, 480f, showLabel: !Compact), brush));
+                    Compact ? 58 : 158, glyph, 480f, showLabel: !Compact), brush, name));
 
             var ctrlBar = Bar("Controls", bottom.transform, Compact ? 8f : 14f);
             var stormBtn = Pill(ctrlBar.transform, "Storm",
@@ -660,6 +660,15 @@ namespace Habagat
             _pauseBtn.GetComponentInChildren<Text>().text = _world.running ? "Pause Sim" : "Resume Sim";
         }
 
+        /// <summary>Display name of the selected brush, for the compact readout.</summary>
+        private string ActiveToolName()
+        {
+            if (_paint == null) return "";
+            foreach (var (_, brush, name) in _toolBtns)
+                if (brush == _paint.brush) return name;
+            return "";
+        }
+
         private void Update()
         {
             // A browser window dragged narrow, or a phone turned over, crosses the
@@ -687,8 +696,12 @@ namespace Habagat
             // Abbreviated words rather than symbols: the font is LegacyRuntime.ttf,
             // which has no dependable coverage past Latin, and a missing glyph renders
             // as an empty box — worse than the word it replaced.
+            // Compact leads with the tool's name, because compact is also the layout
+            // that took the names off the buttons. Eight glyphs with nothing spelling
+            // any of them out is a guessing game — a grate reads as a drain pump only
+            // once you already know that is what it is.
             _stats.text = Compact
-                ? $"Homes {s.FloodedHouses}   Cells {s.Flooded}   " +
+                ? $"{ActiveToolName()}   Homes {s.FloodedHouses}   Cells {s.Flooded}   " +
                   $"Mang {s.MangroveCount}   Drain {s.DrainCount}   t{s.Tick}"
                 : $"Homes Flooded: {s.FloodedHouses}    " +
                   $"Flooded Cells: {s.Flooded}    " +
@@ -710,7 +723,7 @@ namespace Habagat
                 _stats.color = wet ? Accent : Ink;
             }
 
-            foreach (var (btn, brush) in _toolBtns) Tint(btn, _paint != null && _paint.brush == brush);
+            foreach (var (btn, brush, _) in _toolBtns) Tint(btn, _paint != null && _paint.brush == brush);
             foreach (var (btn, preset) in _presetBtns) Tint(btn, _world.preset == preset);
         }
     }
