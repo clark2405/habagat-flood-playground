@@ -18,6 +18,10 @@
          verifies against the JavaScript original — which is the entire point of
          the harness. Unity compiles these same files from Assets/Scripts/Sim. -->
     <Compile Include="..\HabagatUnity\Assets\Scripts\Sim\*.cs" />
+    <!-- The reference output, generated from the JavaScript by
+         scripts/fingerprint.mjs. Copied next to the binary so the check does not
+         depend on the working directory dotnet happened to be run from. -->
+    <None Include="fingerprint.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
