@@ -66,8 +66,18 @@ namespace Habagat
             return sim;
         }
 
-        /// <summary>Trigger a storm surge rolling in from the southern edge.</summary>
-        public void BeginSurge(int ticks = 260) => SurgeTicks = ticks;
+        /// <summary>
+        /// Trigger a storm surge rolling in from the southern edge.
+        ///
+        /// 200, because that is what the reference sets when the storm is switched on
+        /// (<c>toggleStorm</c> in FloodPlayground.jsx). It was 260 here, and nothing
+        /// caught it: the fingerprint samples at t=100 and t=300, and with the surge
+        /// beginning at t=150 both sides are still surging at both of those points.
+        /// Only the t=400 line saw it — 30% of extra surge, worth ~5% more standing
+        /// water on every preset — and that line had never been compared against a
+        /// JavaScript run that anybody kept.
+        /// </summary>
+        public void BeginSurge(int ticks = 200) => SurgeTicks = ticks;
 
         /// <param name="rain">Rain intensity slider, 0..10.</param>
         /// <param name="storm">Whether the habagat storm is active.</param>

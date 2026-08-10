@@ -86,7 +86,8 @@ the gaps listed below.
 Unity.exe -batchmode -quit -projectPath unity/HabagatUnity   -executeMethod HabagatEditor.BuildPlayer.Run -buildOut <dir>   # standalone build
 <dir>/Habagat.exe -selftest -report r.txt -screen-width 1280 -screen-height 720
 
-dotnet run --project unity/HabagatSim.Verify     # sim fidelity, must stay identical
+dotnet run --project unity/HabagatSim.Verify     # sim fidelity — exits non-zero on drift
+npm run fingerprint                              # regenerate the JS reference (rarely)
 
 Unity.exe -batchmode -quit -projectPath unity/HabagatUnity \
   -executeMethod HabagatEditor.SceneShot.Run \

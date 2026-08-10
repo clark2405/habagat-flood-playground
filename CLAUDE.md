@@ -8,7 +8,8 @@ Vite, no backend. Cozy low-poly look, aiming at Paralives' environment style.
 ```bash
 npm run dev                                  # vite dev server
 npm run build                                # production build
-dotnet run --project unity/HabagatSim.Verify # C# sim fidelity check (see below)
+npm run fingerprint                          # regenerate the JS reference fingerprint
+dotnet run --project unity/HabagatSim.Verify # C# sim fidelity check — FAILS on drift
 ```
 
 Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
@@ -56,8 +57,11 @@ looking at screenshots, and (b) the C# fingerprint diff.
 
 Two files carry almost everything:
 
-- `src/FloodPlayground.jsx` (~690 lines) — terrain presets, the flood CA (`step`),
-  brush tools, and all React UI.
+- `src/sim.js` — the simulation with no React on it: terrain presets, `createSim`,
+  and the flood CA (`step`). Split out so it can run under plain node, which is what
+  makes the reference fingerprint reproducible.
+- `src/FloodPlayground.jsx` (~415 lines) — brush tools and all React UI. Its `step`
+  is now a four-line wrapper that calls `sim.js` and pushes the result into state.
 - `src/ThreeCanvas.jsx` (~2900 lines) — the entire 3D scene: terrain and water
   meshes, the surrounding world, every prop, weather, post-processing. Numbered
   section comments (`// 9b. ...`) are the navigation aid.
@@ -256,7 +260,22 @@ reproduced *deliberately*; both were caught by fingerprint diffing, not review:
    intermediate is `double`, cast to `float` only on assignment.
 
 Any change to the sim in either language must keep `HabagatSim.Verify` byte-identical
-to the JS reference across all 52 fingerprint lines.
+to the JS reference across all 52 fingerprint lines. **This is now enforced, not
+remembered.** The harness compares itself against
+`unity/HabagatSim.Verify/fingerprint.txt` and exits non-zero naming every line that
+diverges; that file is generated from the JavaScript by `npm run fingerprint`, which
+runs `src/sim.js` — the same module the web build plays.
+
+That arrangement is new, and it immediately found a real divergence. The sim used to
+live *inside* the React component, so the reference half of the comparison could not
+be produced at all and "verified against JS" rested on a diff someone did once and
+did not keep. `BeginSurge` defaulted to **260 ticks against the reference's 200** —
+about 5% more standing water on every preset at t=400. It survived because the
+fingerprint samples at t=100 and t=300 and the surge starts at t=150, so both sides
+are still surging at both sample points. Only the t=400 line ever saw it.
+
+Regenerate the reference **only** when the JavaScript deliberately changes. If C#
+drifts, fix C#.
 
 See `unity/README.md` for the current blocker (Defender causing `EPERM` on package
 resolution) and remaining port steps.
