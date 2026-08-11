@@ -49,6 +49,11 @@ foreach (var (name, type, seed) in presets)
         lines.Add($"  ELEV {name}[{p}]={F(elev[p])}");
 
     // Run the simulation under a fixed weather script and fingerprint the result.
+    //
+    // t=160 and t=360 bracket the surge, which begins at 150 and lasts 200 ticks.
+    // Without them the only sample after the surge ends is t=400, and that nearly
+    // let a surge running 30% too long through — at t=100 neither side has begun
+    // and at t=300 both are still going, so one line carried the whole check.
     var sim = FloodSim.FromPreset(type, seed);
     for (int t = 0; t < 400; t++)
     {
@@ -57,11 +62,45 @@ foreach (var (name, type, seed) in presets)
         if (t == 150) sim.BeginSurge();
         var st = sim.Step(rain, storm);
 
-        if (t == 99 || t == 299 || t == 399)
+        if (t == 99 || t == 159 || t == 299 || t == 359 || t == 399)
             lines.Add(
                 $"  SIM {name} t={st.Tick} water={F(st.Water)} flooded={st.Flooded} " +
                 $"mang={st.MangroveCount} drn={st.DrainCount}");
     }
+
+    // The brush tools, which nothing verified until now: six of them, ported cell
+    // for cell from the JavaScript, and never once compared against it.
+    var brush = FloodSim.FromPreset(type, seed);
+    brush.Paint(FloodSim.Tool.Raise, 30, 20);
+    brush.Paint(FloodSim.Tool.Lower, 60, 40);
+    brush.Paint(FloodSim.Tool.Water, 45, 30);
+    brush.Paint(FloodSim.Tool.Mangrove, 20, 45);
+    brush.Paint(FloodSim.Tool.DrainPump, 70, 25);
+    brush.Paint(FloodSim.Tool.Clear, 20, 45); // over the mangroves, so Clear has work
+
+    // Probed at the stamp centres, not summed over the grid. The first version of
+    // this summed, and the sum was worthless: raise and lower cancel each other
+    // exactly, so it came back equal to the untouched terrain to six decimals and
+    // would have passed with both tools broken.
+    double eR = brush.Elev[20 * 96 + 30], eL = brush.Elev[40 * 96 + 60];
+    double wW = brush.Water[30 * 96 + 45], wEdge = brush.Water[30 * 96 + 47];
+    int mang = 0, drn = 0;
+    for (int i = 0; i < brush.Elev.Length; i++)
+    {
+        if (brush.Mang[i] != 0) mang++;
+        if (brush.Drn[i] != 0) drn++;
+    }
+    lines.Add(
+        $"  PAINT {name} raise={F(eR)} lower={F(eL)} water={F(wW)} " +
+        $"falloff={F(wEdge)} mang={mang} drn={drn}");
+
+    // And again after the water has had somewhere to go, so the painted state is
+    // checked through the CA rather than only at the moment it was stamped.
+    for (int t = 0; t < 50; t++) brush.Step(0f, false);
+    var ps = brush.Step(0f, false);
+    lines.Add(
+        $"  PAINT {name} t={ps.Tick} water={F(ps.Water)} flooded={ps.Flooded} " +
+        $"mang={ps.MangroveCount} drn={ps.DrainCount}");
 }
 
 if (Array.IndexOf(args, "--print") >= 0)

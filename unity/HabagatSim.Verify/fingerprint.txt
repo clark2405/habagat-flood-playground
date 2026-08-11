@@ -9,8 +9,12 @@ TERRAIN coastal sum=9459.533225 min=-3.497334 max=4.787451
   ELEV coastal[5000]=0.793880
   ELEV coastal[6143]=-0.863831
   SIM coastal t=100 water=490.737490 flooded=2544 mang=19 drn=0
+  SIM coastal t=160 water=1012.601794 flooded=3481 mang=19 drn=0
   SIM coastal t=300 water=2065.700406 flooded=4310 mang=19 drn=0
+  SIM coastal t=360 water=1924.812684 flooded=3916 mang=19 drn=0
   SIM coastal t=400 water=1833.921900 flooded=3788 mang=19 drn=0
+  PAINT coastal raise=2.417040 lower=1.500494 water=0.250000 falloff=0.083333 mang=19 drn=29
+  PAINT coastal t=51 water=0.027026 flooded=0 mang=19 drn=29
 TERRAIN river sum=16945.425900 min=-3.842334 max=5.368184
   ELEV river[0]=3.529743
   ELEV river[1]=3.552476
@@ -22,8 +26,12 @@ TERRAIN river sum=16945.425900 min=-3.842334 max=5.368184
   ELEV river[5000]=3.973089
   ELEV river[6143]=4.107919
   SIM river t=100 water=528.458208 flooded=2433 mang=0 drn=0
+  SIM river t=160 water=1232.997879 flooded=3591 mang=0 drn=0
   SIM river t=300 water=2396.664476 flooded=4430 mang=0 drn=0
+  SIM river t=360 water=2242.282030 flooded=3971 mang=0 drn=0
   SIM river t=400 water=2114.704294 flooded=3845 mang=0 drn=0
+  PAINT river raise=3.226815 lower=3.268617 water=0.250000 falloff=0.083333 mang=0 drn=29
+  PAINT river t=51 water=0.369715 flooded=5 mang=0 drn=29
 TERRAIN urban sum=10125.661339 min=-0.954587 max=3.283879
   ELEV urban[0]=2.777662
   ELEV urban[1]=2.774445
@@ -35,8 +43,12 @@ TERRAIN urban sum=10125.661339 min=-0.954587 max=3.283879
   ELEV urban[5000]=2.496492
   ELEV urban[6143]=2.944173
   SIM urban t=100 water=632.330184 flooded=3353 mang=0 drn=0
+  SIM urban t=160 water=1497.501987 flooded=4568 mang=0 drn=0
   SIM urban t=300 water=3011.219344 flooded=5259 mang=0 drn=0
+  SIM urban t=360 water=2948.936151 flooded=4859 mang=0 drn=0
   SIM urban t=400 water=2857.326917 flooded=4686 mang=0 drn=0
+  PAINT urban raise=0.466207 lower=0.041136 water=0.250000 falloff=0.083333 mang=0 drn=29
+  PAINT urban t=51 water=0.000000 flooded=0 mang=0 drn=29
 TERRAIN island sum=942.855120 min=-3.451405 max=4.187511
   ELEV island[0]=-3.231384
   ELEV island[1]=-3.106590
@@ -48,5 +60,9 @@ TERRAIN island sum=942.855120 min=-3.451405 max=4.187511
   ELEV island[5000]=-1.676061
   ELEV island[6143]=-2.599538
   SIM island t=100 water=240.425285 flooded=1671 mang=0 drn=0
+  SIM island t=160 water=542.371912 flooded=2260 mang=0 drn=0
   SIM island t=300 water=1039.199797 flooded=2639 mang=0 drn=0
+  SIM island t=360 water=895.630580 flooded=2139 mang=0 drn=0
   SIM island t=400 water=815.301858 flooded=1941 mang=0 drn=0
+  PAINT island raise=1.774126 lower=1.807894 water=0.250000 falloff=0.083333 mang=0 drn=29
+  PAINT island t=51 water=0.689467 flooded=9 mang=0 drn=29
