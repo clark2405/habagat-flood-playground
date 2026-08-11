@@ -321,4 +321,53 @@ export function step(S, rain, storm, houses) {
   };
 }
 
+/**
+ * Stamp a brush over the grid. Moved out of handlePaint unchanged.
+ *
+ * `onCell` is called for every cell the brush actually affects, which is how the
+ * React version keeps firing a sound cue per cell — the reference does that
+ * inside this loop, and quietly turning it into one cue per stroke would have
+ * changed the thing everything else is verified against. The fingerprint passes
+ * no callback.
+ *
+ * The house tool is NOT here: it needs the houses list, it only acts on the
+ * centre cell, and it picks a style from Math.random. It stays in the component.
+ */
+export function paint(S, tool, x, y, R = 3, onCell) {
+  for (let dy = -R; dy <= R; dy++) {
+    for (let dx = -R; dx <= R; dx++) {
+      const px = x + dx;
+      const py = y + dy;
+      if (px < 0 || px >= W || py < 0 || py >= H) continue;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > R * R) continue;
+      const i = py * W + px;
+      const fall = 1 - Math.sqrt(d2) / R;
+
+      if (tool === "raise") {
+        S.elev[i] += 0.15 * fall;
+      } else if (tool === "lower") {
+        S.elev[i] -= 0.15 * fall;
+      } else if (tool === "water") {
+        S.water[i] += 0.25 * fall;
+      } else if (tool === "mangrove" && S.elev[i] > SEA_LEVEL) {
+        S.mang[i] = 1;
+        S.absorb[i] = 0.008;
+      } else if (tool === "drain" && S.elev[i] > SEA_LEVEL) {
+        S.drn[i] = 1;
+        S.drain[i] = 0.025;
+      } else if (tool === "clear") {
+        S.mang[i] = 0;
+        S.drn[i] = 0;
+        S.absorb[i] = 0;
+        S.drain[i] = 0;
+        S.water[i] = 0;
+      } else {
+        continue;
+      }
+      if (onCell) onCell(tool, i, dx, dy);
+    }
+  }
+}
+
 export { W, H, FLOW_RATE, MIN_WATER, SEA_LEVEL, makeTerrainPreset, PRESETS };

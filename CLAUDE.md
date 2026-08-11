@@ -260,8 +260,8 @@ reproduced *deliberately*; both were caught by fingerprint diffing, not review:
    intermediate is `double`, cast to `float` only on assignment.
 
 Any change to the sim in either language must keep `HabagatSim.Verify` byte-identical
-to the JS reference across all 52 fingerprint lines. **This is now enforced, not
-remembered.** The harness compares itself against
+to the JS reference across all 68 fingerprint lines — terrain, the CA under a fixed
+weather script, and the six brush tools. **This is now enforced, not remembered.** The harness compares itself against
 `unity/HabagatSim.Verify/fingerprint.txt` and exits non-zero naming every line that
 diverges; that file is generated from the JavaScript by `npm run fingerprint`, which
 runs `src/sim.js` — the same module the web build plays.
@@ -274,8 +274,18 @@ about 5% more standing water on every preset at t=400. It survived because the
 fingerprint samples at t=100 and t=300 and the surge starts at t=150, so both sides
 are still surging at both sample points. Only the t=400 line ever saw it.
 
-Regenerate the reference **only** when the JavaScript deliberately changes. If C#
-drifts, fix C#.
+Regenerate the reference **only** when the JavaScript deliberately changes, or when
+the harness deliberately samples more. If C# drifts, fix C#.
+
+**Fingerprint a probe, not a sum.** The brush section first reported the total
+elevation over the grid, which was worthless: raise and lower cancel each other
+exactly, so it came back equal to the untouched terrain to six decimals and would
+have passed with both tools broken. It now probes the stamp centres and a cell two
+out — the latter pins the falloff curve itself (`0.25 × (1 − 2/3) = 0.083333`).
+
+The sim samples bracket the surge (t=100/160/300/360/400) because it begins at
+t=150 and lasts 200 ticks. With only 100/300/400, the single t=400 line carried the
+whole check — which is how a surge running 30% long survived.
 
 See `unity/README.md` for the current blocker (Defender causing `EPERM` on package
 resolution) and remaining port steps.

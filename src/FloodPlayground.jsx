@@ -6,7 +6,7 @@ import { Icons } from "./components/Icons";
 // scripts/fingerprint.mjs does exactly that, and that fingerprint is what the
 // C# port is checked against. Keeping a second copy here would mean the
 // verified sim and the played sim could quietly drift apart.
-import { W, H, SEA_LEVEL, PRESETS, createSim, step as simStep } from "./sim";
+import { W, H, SEA_LEVEL, PRESETS, createSim, step as simStep, paint as simPaint } from "./sim";
 
 export default function FloodPlayground() {
   const sim = useRef(null);
@@ -81,49 +81,29 @@ export default function FloodPlayground() {
 
       if (t === "view" || t === "pan") return; // No paint in View / Orbit mode!
 
-      for (let dy = -R; dy <= R; dy++) {
-        for (let dx = -R; dx <= R; dx++) {
-          const px = x + dx;
-          const py = y + dy;
-          if (px < 0 || px >= W || py < 0 || py >= H) continue;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > R * R) continue;
-          const i = py * W + px;
-          const fall = 1 - Math.sqrt(d2) / R;
-
-          if (t === "raise") {
-            S.elev[i] += 0.15 * fall;
-            sound.playTerraform(true);
-          } else if (t === "lower") {
-            S.elev[i] -= 0.15 * fall;
-            sound.playTerraform(false);
-          } else if (t === "water") {
-            S.water[i] += 0.25 * fall;
-            sound.playWaterSplash();
-          } else if (t === "mangrove" && S.elev[i] > SEA_LEVEL) {
-            S.mang[i] = 1;
-            S.absorb[i] = 0.008;
-            sound.playPlant();
-          } else if (t === "drain" && S.elev[i] > SEA_LEVEL) {
-            S.drn[i] = 1;
-            S.drain[i] = 0.025;
-            sound.playBuild();
-          } else if (t === "house" && S.elev[i] > SEA_LEVEL && dx === 0 && dy === 0) {
-            if (!houses.some((h) => Math.hypot(h.x - px, h.y - py) < 2)) {
-              const styles = ["nipa", "house", "store", "apartment"];
-              const randomStyle = styles[Math.floor(Math.random() * styles.length)];
-              setHouses((prev) => [...prev, { id: Date.now(), x: px, y: py, style: randomStyle }]);
-              sound.playBuild();
-            }
-          } else if (t === "clear") {
-            S.mang[i] = 0;
-            S.drn[i] = 0;
-            S.absorb[i] = 0;
-            S.drain[i] = 0;
-            S.water[i] = 0;
-          }
+      // Homes are placed, not painted: one per cell, refused next to an existing
+      // one, and the style is genuinely random rather than seeded. That is why it
+      // is not part of sim.paint.
+      if (t === "house") {
+        if (S.elev[y * W + x] > SEA_LEVEL &&
+            !houses.some((h) => Math.hypot(h.x - x, h.y - y) < 2)) {
+          const styles = ["nipa", "house", "store", "apartment"];
+          const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+          setHouses((prev) => [...prev, { id: Date.now(), x, y, style: randomStyle }]);
+          sound.playBuild();
         }
+        return;
       }
+
+      // One cue per affected cell, which is what this always did — the callback
+      // exists so the loop could move into ./sim without changing that.
+      simPaint(S, t, x, y, R, (tool) => {
+        if (tool === "raise") sound.playTerraform(true);
+        else if (tool === "lower") sound.playTerraform(false);
+        else if (tool === "water") sound.playWaterSplash();
+        else if (tool === "mangrove") sound.playPlant();
+        else if (tool === "drain") sound.playBuild();
+      });
     },
     [houses]
   );
