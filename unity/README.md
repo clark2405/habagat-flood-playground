@@ -9,7 +9,8 @@ unity/
       JsMath.cs                     JavaScript numeric semantics the presets depend on
       TerrainPresets.cs             heightmap generation (makeTerrainPreset)
       FloodSim.cs                   the shallow-water CA (step) and brush tools
-    Assets/Editor/SimVerify.cs      runs the fingerprint inside Unity
+      SimFingerprint.cs             the fingerprint lines, shared by both harnesses
+    Assets/Editor/SimVerify.cs      runs the fingerprint inside Unity, fails on drift
   HabagatSim.Verify/                same fingerprint under plain dotnet
 ```
 
@@ -35,20 +36,28 @@ dotnet run --project unity/HabagatSim.Verify -- --print   # just emit the 68 lin
 from `src/sim.js` — the same module the web build plays. Regenerate it only when
 the JavaScript deliberately changes; if the C# drifts, fix the C#.
 
-Inside Unity, headless:
+Inside Unity, headless. This also exits non-zero on drift, so a batch run fails
+rather than writing a file nobody reads; `-simOut` is optional and only dumps the
+lines for inspection:
 
 ```bash
 "C:/Program Files/Unity/Hub/Editor/6000.3.20f1/Editor/Unity.exe" \
   -batchmode -quit -nographics \
   -projectPath <repo>/unity/HabagatUnity \
   -executeMethod HabagatEditor.SimVerify.Run \
-  -simOut <path>/unity-fp.txt -logFile <path>/unity.log
+  -logFile <path>/unity.log
 ```
+
+Both front ends generate their lines from `Assets/Scripts/Sim/SimFingerprint.cs`
+rather than each owning a copy. They did each own a copy, and the copies drifted:
+the editor one was still sampling three ticks per preset with no brush section, so
+"the fingerprint, inside Unity" was quietly checking something narrower than the
+dotnet run it was supposed to corroborate.
 
 Both print terrain sums, spot elevations, simulation state at ticks 100, 160, 300,
 360 and 400, and the result of a fixed sequence of brush strokes, for all four
-presets. **Both match the JS byte-for-byte on all 68 lines**, and the dotnet
-harness proves it on every run rather than leaving it to a manual diff.
+presets. **Both match the JS byte-for-byte on all 68 lines**, and both now prove it
+on every run rather than leaving it to a manual diff.
 
 The sample points are chosen around what they failed to catch. They were once
 t=100/300/400 only, and the surge begins at t=150 and lasts 200 ticks — so at

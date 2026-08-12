@@ -22,7 +22,7 @@ Unity, all headless (`Unity.exe -batchmode -quit -projectPath unity/HabagatUnity
 | `HabagatEditor.BuildPlayer.Run` | standalone player, `-buildOut <dir>` |
 | `HabagatEditor.BuildPlayer.RunWeb` | WebGL build — the only one that reaches a phone today |
 | `HabagatEditor.BuildPlayer.RunAndroid` / `.RunIOS` | scaffolded; neither module is installed |
-| `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity |
+| `HabagatEditor.SimVerify.Run` | the fingerprint, inside Unity — non-zero on drift |
 
 Then `Habagat.exe -selftest -report r.txt` runs 36 checks against the built player
 — brush, buttons, preset switching, frame rate, sound, touch, both UI densities —

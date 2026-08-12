@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.IO;
 using System.Text;
 using Habagat;
@@ -8,75 +7,69 @@ using UnityEditor;
 namespace HabagatEditor
 {
     /// <summary>
-    /// Runs the ported simulation inside the Unity editor and writes the same
-    /// fingerprint that HabagatSim.Verify produces under plain dotnet.
+    /// Runs the fingerprint inside the Unity editor and checks it against the same
+    /// JavaScript reference the dotnet harness uses.
     ///
-    /// Compiling under dotnet is not by itself proof that the sim behaves the
-    /// same in Unity: Unity uses its own scripting runtime and its own compiler
-    /// settings, and float behaviour is exactly the kind of thing that can differ
-    /// between them. Running the fingerprint here and diffing it against the
-    /// JavaScript reference closes that gap.
+    /// Compiling under dotnet is not by itself proof that the sim behaves the same
+    /// in Unity: Unity has its own scripting runtime and its own compiler settings,
+    /// and float behaviour is exactly the kind of thing that can differ between
+    /// them. This is the run that answers that.
     ///
-    /// Invoke headlessly:
+    /// The lines come from <see cref="SimFingerprint"/> rather than being generated
+    /// here. They used to be generated here, in a hand-written copy of the dotnet
+    /// harness's loop — and the copy had silently fallen behind, still sampling
+    /// three ticks per preset with no brush section at all. Two harnesses that are
+    /// supposed to agree cannot each own their own definition of what they check.
+    ///
+    /// Exits non-zero on drift, so a batch run fails rather than writing a file
+    /// nobody reads:
     ///   Unity.exe -batchmode -quit -projectPath &lt;proj&gt; \
     ///             -executeMethod HabagatEditor.SimVerify.Run \
-    ///             -simOut &lt;path-to-write&gt;
+    ///             [-simOut &lt;path&gt;]
     /// </summary>
     public static class SimVerify
     {
-        private static string F(double v) => v.ToString("F6", CultureInfo.InvariantCulture);
-
+        [MenuItem("Habagat/Verify Simulation Fingerprint")]
         public static void Run()
         {
-            string outPath = "sim-fingerprint.txt";
+            string outPath = null;
             var args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
                 if (args[i] == "-simOut") outPath = args[i + 1];
 
-            var sb = new StringBuilder();
+            var lines = SimFingerprint.Build();
 
-            var presets = new (string Name, PresetType Type, int Seed)[]
+            if (outPath != null)
             {
-                ("coastal", PresetType.Coastal, 1337),
-                ("river",   PresetType.River,   4040),
-                ("urban",   PresetType.Urban,   9999),
-                ("island",  PresetType.Island,  8888),
-            };
-
-            foreach (var (name, type, seed) in presets)
-            {
-                var elev = TerrainPresets.Build(type, seed);
-
-                double sum = 0, min = double.MaxValue, max = double.MinValue;
-                foreach (var e in elev)
-                {
-                    sum += e;
-                    if (e < min) min = e;
-                    if (e > max) max = e;
-                }
-
-                sb.AppendLine($"TERRAIN {name} sum={F(sum)} min={F(min)} max={F(max)}");
-
-                foreach (var p in new[] { 0, 1, 95, 96, 3000, 3071, 4096, 5000, 6143 })
-                    sb.AppendLine($"  ELEV {name}[{p}]={F(elev[p])}");
-
-                var sim = FloodSim.FromPreset(type, seed);
-                for (int t = 0; t < 400; t++)
-                {
-                    bool storm = t >= 100 && t < 300;
-                    float rain = t < 100 ? 4f : 0f;
-                    if (t == 150) sim.BeginSurge();
-                    var st = sim.Step(rain, storm);
-
-                    if (t == 99 || t == 299 || t == 399)
-                        sb.AppendLine(
-                            $"  SIM {name} t={st.Tick} water={F(st.Water)} flooded={st.Flooded} " +
-                            $"mang={st.MangroveCount} drn={st.DrainCount}");
-                }
+                File.WriteAllText(outPath, string.Join("\n", lines) + "\n");
+                UnityEngine.Debug.Log($"[SimVerify] wrote fingerprint to {Path.GetFullPath(outPath)}");
             }
 
-            File.WriteAllText(outPath, sb.ToString());
-            UnityEngine.Debug.Log($"[SimVerify] wrote fingerprint to {Path.GetFullPath(outPath)}");
+            // Application.dataPath is <project>/Assets, so the reference sits two
+            // levels up beside the dotnet harness. Resolved rather than hardcoded so
+            // this works whatever directory Unity was launched from.
+            string expected = Path.GetFullPath(Path.Combine(
+                UnityEngine.Application.dataPath, "..", "..", "HabagatSim.Verify", "fingerprint.txt"));
+
+            var report = new StringBuilder();
+            int bad = SimFingerprint.Compare(lines, expected, m => report.AppendLine(m));
+
+            if (bad < 0)
+            {
+                UnityEngine.Debug.LogError($"[SimVerify] {report}");
+                EditorApplication.Exit(2);
+                return;
+            }
+
+            if (bad > 0)
+            {
+                UnityEngine.Debug.LogError(
+                    $"[SimVerify] FAIL — {bad} lines diverge from the JS reference.\n{report}");
+                EditorApplication.Exit(1);
+                return;
+            }
+
+            UnityEngine.Debug.Log($"[SimVerify] OK — {lines.Count} lines identical to the JS reference.");
         }
     }
 }
